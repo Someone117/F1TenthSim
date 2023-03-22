@@ -351,7 +351,6 @@ private:
         vkDeviceWaitIdle(device);
     }
 
-    //May want to recreate swap chain when rendering
     void cleanupSwapChain() {
         for (VkFramebuffer swapChainFramebuffer: swapChainFramebuffers) {
             vkDestroyFramebuffer(device, swapChainFramebuffer, nullptr);
@@ -619,7 +618,9 @@ private:
         vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
         swapChainImages.resize(imageCount);
 
+
         vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+
 
 
         for(VkImage i : swapChainImages) {
@@ -633,9 +634,9 @@ private:
 
     void createImageViews() {
         swapChainImageViews.resize(swapChainImages.size());
-        for (size_t i = 0; i < swapChainImages.size(); i++) {
-            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, true);
-        }
+        for (size_t i = 0; i < swapChainImages.size(); i++)
+            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat);
+
     }
 
     void createRenderPass() {
@@ -955,9 +956,7 @@ private:
         endSingleTimeCommands(commandBuffer);
     }
 
-    VkImageView createImageView(VkImage image, VkFormat format, bool doCreateImage) {
-        //if(doCreateImage)
-//            createImage(swapChainExtent.width, swapChainExtent.height, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, image);
+    VkImageView createImageView(VkImage image, VkFormat format) {
 
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -975,11 +974,12 @@ private:
             throw std::runtime_error("failed to create texture image view!");
         }
 
+
         return imageView;
     }
 
     void createTextureImageView() {
-        textureImageView = createImageView(textureImage.image, VK_FORMAT_R8G8B8A8_SRGB, false);
+        textureImageView = createImageView(textureImage.image, VK_FORMAT_R8G8B8A8_SRGB);
     }
 
     void createTextureSampler() {
