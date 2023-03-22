@@ -33,7 +33,7 @@
 #include "Camera.h"
 
 /*
-Ended before: 
+Ended before:
 Combined image sampler
 */
 
@@ -104,11 +104,9 @@ struct SwapChainSupportDetails {
 
 struct Vertex {
     glm::vec2 pos;
-    glm::vec3 color;
     glm::vec2 texCoord;
 
-    Vertex(const glm::vec2 &pos, const glm::vec3 &color, const glm::vec2 &texCoord) : pos(pos), color(color),
-                                                                                      texCoord(texCoord) {}
+    Vertex(const glm::vec2 &pos, const glm::vec2 &texCoord) : pos(pos), texCoord(texCoord) {}
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -119,22 +117,22 @@ struct Vertex {
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
         attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
         attributeDescriptions[0].offset = offsetof(Vertex, pos);
 
+//        attributeDescriptions[1].binding = 0;
+//        attributeDescriptions[1].location = 1;
+//        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+//        attributeDescriptions[1].offset = offsetof(Vertex, color);
+
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-        attributeDescriptions[2].binding = 0;
-        attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, texCoord);
 
         return attributeDescriptions;
     };
@@ -147,10 +145,10 @@ struct UniformBufferObject {
 };
 
 const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f,  -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f,  0.5f},  {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f, 0.5f},  {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+        {{-0.5f, -0.5f},  {1.0f, 0.0f}},
+        {{0.5f,  -0.5f},  {0.0f, 0.0f}},
+        {{0.5f,  0.5f},   {0.0f, 1.0f}},
+        {{-0.5f, 0.5f},   {1.0f, 1.0f}}
 };
 
 const std::vector<uint16_t> indices = {
@@ -182,7 +180,7 @@ private:
     VkQueue presentQueue;
 
     VkSwapchainKHR swapChain;
-    std::vector<ImageAlloc> swapChainImages;
+    std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
     std::vector<VkImageView> swapChainImageViews;
@@ -254,13 +252,17 @@ private:
 
         vmaCreateAllocator(&allocatorInfo, &allocator);
 
+        createCommandPool();
+        createCommandBuffers();
+
+
+
         createSwapChain();
         createImageViews();
         createRenderPass();
         createDescriptorSetLayout();
         createGraphicsPipeline();
         createFramebuffers();
-        createCommandPool();
 
 
         createTextureImage();
@@ -273,7 +275,8 @@ private:
         createUniformBuffers();
         createDescriptorPool();
         createDescriptorSets();
-        createCommandBuffers();
+
+
         createSyncObjects();
     }
 
@@ -306,10 +309,10 @@ private:
                 if(glfwGetTime() - cursor_capture_delay >= 0.1) {
                     cursor_capture_delay = glfwGetTime();
                     capture_cursor = !capture_cursor;
-                     if (capture_cursor) {
+                    if (capture_cursor) {
                         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-                         glfwGetCursorPos(window, &xpos, &ypos);
-                     } else {
+                        glfwGetCursorPos(window, &xpos, &ypos);
+                    } else {
                         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
                     }
                 }
@@ -343,7 +346,6 @@ private:
 
 
             drawFrame();
-
         }
 
         vkDeviceWaitIdle(device);
@@ -386,7 +388,7 @@ private:
 
         vmaDestroyBuffer(allocator, indexBuffer.buffer, indexBuffer.allocation);
 
-        vmaDestroyBuffer(allocator, vertexBuffer.buffer, indexBuffer.allocation);
+        vmaDestroyBuffer(allocator, vertexBuffer.buffer, vertexBuffer.allocation);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -616,7 +618,13 @@ private:
 
         vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
         swapChainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(device, swapChain, &imageCount, &swapChainImages.data()->image);
+
+        vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+
+
+        for(VkImage i : swapChainImages) {
+            transitionImageLayout(i, surfaceFormat.format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        }
 
         swapChainImageFormat = surfaceFormat.format;
         swapChainExtent = extent;
@@ -626,7 +634,7 @@ private:
     void createImageViews() {
         swapChainImageViews.resize(swapChainImages.size());
         for (size_t i = 0; i < swapChainImages.size(); i++) {
-            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat);
+            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, true);
         }
     }
 
@@ -865,7 +873,7 @@ private:
         }
     }
 
-    void transitionImageLayout(ImageAlloc image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkImageMemoryBarrier barrier{};
@@ -874,7 +882,7 @@ private:
         barrier.newLayout = newLayout;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = image.image;
+        barrier.image = image;
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = 1;
@@ -897,7 +905,14 @@ private:
 
             sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
             destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        } else {
+        } else if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+            sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        }
+        else {
             throw std::invalid_argument("unsupported layout transition!");
         }
 
@@ -931,18 +946,22 @@ private:
                 1
         };
 
+        if(image.image == VK_NULL_HANDLE) {
+            throw std::invalid_argument("image uh");
+        }
+
         vkCmdCopyBufferToImage(commandBuffer, buffer.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
         endSingleTimeCommands(commandBuffer);
     }
 
-    VkImageView createImageView(ImageAlloc image, VkFormat format) {
-
-        createImage(swapChainExtent.width, swapChainExtent.height, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ,image); // TODO: NOW CORRECT??
+    VkImageView createImageView(VkImage image, VkFormat format, bool doCreateImage) {
+        //if(doCreateImage)
+//            createImage(swapChainExtent.width, swapChainExtent.height, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, image);
 
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = image.image;
+        viewInfo.image = image;
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = format;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -952,7 +971,6 @@ private:
         viewInfo.subresourceRange.layerCount = 1;
         VkImageView imageView;
 
-
         if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
             throw std::runtime_error("failed to create texture image view!");
         }
@@ -961,7 +979,7 @@ private:
     }
 
     void createTextureImageView() {
-        textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+        textureImageView = createImageView(textureImage.image, VK_FORMAT_R8G8B8A8_SRGB, false);
     }
 
     void createTextureSampler() {
@@ -1000,7 +1018,7 @@ private:
 
         BufferAlloc stagingBuffer{};
 //        VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
         void *data;
         vmaMapMemory(allocator, stagingBuffer.allocation, &data);
@@ -1024,7 +1042,7 @@ private:
 
         BufferAlloc stagingBuffer{};
 //        VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
         void *data;
         vmaMapMemory(allocator, stagingBuffer.allocation, &data);
@@ -1049,7 +1067,7 @@ private:
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                         uniformBuffers[i], VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+                         uniformBuffers[i], VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
         }
     }
 
@@ -1399,7 +1417,7 @@ private:
         }
         BufferAlloc stagingBuffer{};
 //        VkDeviceMemory stagingBufferMemory;
-        createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+        createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
         void *data;
         vmaMapMemory(allocator, stagingBuffer.allocation, &data);
         //        vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
@@ -1412,12 +1430,15 @@ private:
         createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
                     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, textureImage);
 
-        transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
-                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        transitionImageLayout(textureImage.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth),
                           static_cast<uint32_t>(texHeight));
-        transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        transitionImageLayout(textureImage.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+//        transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+//                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
 
         vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
     }
@@ -1477,9 +1498,6 @@ private:
         } else {
             int width, height;
             glfwGetFramebufferSize(window, &width, &height);
-            if(glfwGetKey(window, GLFW_KEY_ESCAPE)) {
-                cleanup();
-            }
 
             VkExtent2D actualExtent = {
                     static_cast<uint32_t>(width),
