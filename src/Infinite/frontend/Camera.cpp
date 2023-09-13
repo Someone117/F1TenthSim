@@ -1,9 +1,10 @@
+#pragma once
 
-
-
-#include <algorithm>
 #include "Camera.h"
+
 namespace Infinite {
+    std::vector<Camera *> cameras = {};
+
     void Camera::move(float amt, MoveDirection direction) {
         glm::vec3 forward = glm::vec3(sin(xAngle), cos(xAngle), 0.0f) * glm::vec3(1.0f, 1.0f, 0.0f);
         forward.z = 0;

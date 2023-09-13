@@ -2,18 +2,18 @@
 #define VULKAN_ENGINE_H
 #pragma once
 
-#include "util/Includes.h"
-#include "util/VulkanUtils.h"
-#include "backend/Software/App.h"
-#include "backend/Settings.h"
-#include "backend/Rendering/RenderPasses/RenderPass.h"
-
+#include "../../util/VulkanUtils.h"
+#include "../Software/App.h"
+#include "../Settings.h"
+#include "RenderPasses/RenderPass.h"
+#include "../../Infinite.h"
 
 namespace Infinite {
 
     //Singleton
     class Engine {
-        friend void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, RenderPass renderPass);
+        friend void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, RenderPass &renderPass);
+
     public:
 
         Engine(Engine const &) = delete;
@@ -165,8 +165,6 @@ namespace Infinite {
         unsigned int getWindowHeight();
 
         //Render
-        VkShaderModule createShaderModule(const std::vector<char> &code);
-
         friend class Model;
 
         VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);
@@ -183,15 +181,16 @@ namespace Infinite {
 
     static void copyBuffer(BufferAlloc srcBuffer, BufferAlloc dstBuffer, VkDeviceSize size);
 
-    void createVertexBuffer(BufferAlloc vertexBuffer, std::vector<Vertex> vertices);
+    void createVertexBuffer(BufferAlloc &vertexBuffer, std::vector<Vertex> vertices);
 
-    void createIndexBuffer(BufferAlloc indexBuffer, std::vector<uint32_t> indices);
+    void createIndexBuffer(BufferAlloc &indexBuffer, std::vector<uint32_t> indices);
 
     static std::vector<const char *> getRequiredExtensions();
 
 
 }
-#include "backend/Model/Image/DepthImage.h"
-#include "backend/Model/Image/ColorImage.h"
+
+#include "../Model/Image/DepthImage.h"
+#include "../Model/Image/ColorImage.h"
 
 #endif //VULKAN_ENGINE_H

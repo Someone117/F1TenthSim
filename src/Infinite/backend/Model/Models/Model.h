@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include "Image/TexturedImage.h"
-#include "../../frontend/Camera.h"
+#include "../Image/TexturedImage.h"
+#include "../../../frontend/Camera.h"
 
 namespace Infinite {
 
@@ -39,10 +39,6 @@ namespace Infinite {
         float yAngle{};
         float zAngle{};
 
-        inline static VkDescriptorPool descriptorPool;
-
-        std::vector<VkDescriptorSet> descriptorSets;
-
         std::vector<BufferAlloc> uniformBuffers;
 
         std::string name;
@@ -50,12 +46,11 @@ namespace Infinite {
         static void
         loadModel(std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, const std::string &model_path);
 
-        void createDescriptorSets();
-
         void createUniformBuffer();
 
+
     public:
-        inline static VkDescriptorSetLayout descriptorSetLayout;
+
 
         Model(std::string _name, std::string model_path, const char *texture_path);
 
@@ -77,10 +72,6 @@ namespace Infinite {
 
         void rotate(glm::vec3 radians);
 
-        static void createDescriptorPool();
-
-        static void createDescriptorSetLayout();
-
         BufferAlloc getUniformBuffer(uint32_t currentImage);
 
         void updateUniformBuffer(uint32_t index, Camera camera);
@@ -90,8 +81,6 @@ namespace Infinite {
         const BufferAlloc &getIndexBuffer() const;
 
         const std::vector<BufferAlloc> &getUniformBuffers() const;
-
-        const std::vector<VkDescriptorSet> &getDescriptorSets() const;
 
         void destroy();
 

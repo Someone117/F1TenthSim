@@ -1,20 +1,17 @@
-//
-// Created by Someo on 5/11/2023.
-//
-
 #ifndef VULKAN_COMMANDBUFFER_H
 #define VULKAN_COMMANDBUFFER_H
+
+#pragma once
+
 #include "../../util/Includes.h"
-#include "RenderPasses/RenderPass.h"
 
 namespace Infinite {
+    class RenderPass;
 
-    class CommandBuffer {
-    private:
+    struct CommandBuffer {
         std::vector<VkCommandBuffer> commandBuffers;
-        static void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, RenderPass renderPass);
-    public:
-        void create();
+
+        void create(VkCommandPool &pool);
     };
 
 } // Infinite

@@ -1,23 +1,37 @@
 #ifndef VULKAN_INFINITE_H
 #define VULKAN_INFINITE_H
+#pragma once
 
-#include "../../util/Includes.h"
+#include "util/Includes.h"
+#include "backend/Settings.h"
 
 namespace Infinite {
     class RenderPass;
 
-    std::vector<RenderPass *> renderPasses; //ToDo: CleanUp
+    extern VkPhysicalDevice physicalDevice;
+    extern VkDevice device;
+//    extern Settings * settings;
+    extern VkFormat swapChainImageFormat;
+    extern VmaAllocator allocator;
+    extern VkCommandPool imagePool;
+    extern std::vector<RenderPass *> renderPasses; //ToDo: CleanUp
 
-    void startInitInfinite();
-    void finishInitInfinite();
 
-    // Calls everything from startInitInfinite and finishInitInfinite
     void initInfinite();
+
     void addRenderPass(RenderPass *r);
-    static void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, RenderPass renderPass);
+
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, RenderPass &renderPass);
+
     void recreateSwapChain();
+
     void renderFrame();
+
     void waitForNextFrame();
+
+    VkShaderModule createShaderModule(const std::vector<char> &code);
+
+    void cleanUp();
 }
 
 #endif //VULKAN_INFINITE_H

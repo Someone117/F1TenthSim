@@ -1,8 +1,13 @@
+#pragma once
+
 #include "Image.h"
-#include "../../Infinite.h"
+#include "../../Rendering/Engine.h"
+#include "../../../Infinite.h"
+
 
 namespace Infinite {
-     VkImageView Image::createImageView(VkImage image, VkFormat format, uint32_t mipLevels, VkImageAspectFlags aspectFlags) {
+    VkImageView
+    Image::createImageView(VkImage image, VkFormat format, uint32_t mipLevels, VkImageAspectFlags aspectFlags) {
 
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -16,14 +21,15 @@ namespace Infinite {
         viewInfo.subresourceRange.layerCount = 1;
         VkImageView imageView;
 
-        if (vkCreateImageView(Engine::getEngine().devices.device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create texture image view!");
+        if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+            throw std::runtime_error("failed to createExtras texture image view!");
         }
         return imageView;
     }
 
-     void Image::transitionImageLayout(Image* image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands(Engine::getEngine().imagePool);
+    void Image::transitionImageLayout(Image *image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
+                                      uint32_t mipLevels) {
+        VkCommandBuffer commandBuffer = Engine::getEngine().beginSingleTimeCommands(imagePool);
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -63,15 +69,17 @@ namespace Infinite {
 
             sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
             destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        } else if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+        } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
             barrier.srcAccessMask = 0;
             barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 
             sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+                   newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
             barrier.srcAccessMask = 0;
-            barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            barrier.dstAccessMask =
+                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
             sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
@@ -88,11 +96,11 @@ namespace Infinite {
                 1, &barrier
         );
 
-        endSingleTimeCommands(commandBuffer, Engine::getEngine().imagePool);
+        Engine::getEngine().endSingleTimeCommands(commandBuffer, imagePool);
     }
 
-    void Image::copyBufferToImage(BufferAlloc buffer, Image* image, uint32_t width, uint32_t height) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands(Engine::getEngine().imagePool);
+    void Image::copyBufferToImage(BufferAlloc buffer, Image *image, uint32_t width, uint32_t height) {
+        VkCommandBuffer commandBuffer = Engine::getEngine().beginSingleTimeCommands(imagePool);
 
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -109,16 +117,19 @@ namespace Infinite {
                 1
         };
 
-        if(image->_image.image == VK_NULL_HANDLE) {
+        if (image->_image.image == VK_NULL_HANDLE) {
             throw std::invalid_argument("image uh");
         }
 
-        vkCmdCopyBufferToImage(commandBuffer, buffer.buffer, image->_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        vkCmdCopyBufferToImage(commandBuffer, buffer.buffer, image->_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               1, &region);
 
-        endSingleTimeCommands(commandBuffer, Engine::getEngine().imagePool);
+        Engine::getEngine().endSingleTimeCommands(commandBuffer, imagePool);
     }
-    void Image::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-                     ImageAlloc &image, VkSampleCountFlagBits numSamples) {
+
+    void Image::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling,
+                            VkImageUsageFlags usage,
+                            ImageAlloc &image, VkSampleCountFlagBits numSamples) {
 
         VmaAllocationCreateInfo allocInfo = {};
         allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -138,17 +149,25 @@ namespace Infinite {
         imageInfo.samples = numSamples;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if(vmaCreateImage(allocator, &imageInfo, &allocInfo, &image.image, &image.allocation, nullptr) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create vma image!");
+        if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &image.image, &image.allocation, nullptr) != VK_SUCCESS) {
+            throw std::runtime_error("failed to createExtras vma image!");
         }
     }
 
     void Image::destroy(VmaAllocator allocator) {
-        vkDestroyImageView(Engine::getEngine().devices.device, _image_view, nullptr);
+        vkDestroyImageView(device, _image_view, nullptr);
         _image.destroy(allocator);
     }
 
     void Image::create() {}
+
+    VkImageView *Image::getImageView() {
+        return &_image_view;
+    }
+
+    ImageAlloc &Image::getImage() {
+        return _image;
+    }
 
 
 } // Infinite

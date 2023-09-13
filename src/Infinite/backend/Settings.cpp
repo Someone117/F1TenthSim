@@ -1,13 +1,14 @@
-//
-// Created by Someo on 4/1/2023.
-//
+#pragma once
 
 #include "Settings.h"
 
 namespace Infinite {
-
-
-    Settings::Settings() {
-
-    }
+    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+    uint32_t mipLevels;
+//
+//    Settings::Settings() = default;
+//
+//    void Settings::setMsaaSamples(VkSampleCountFlagBits msaaSamples) {
+//        Settings::msaaSamples = msaaSamples;
+//    }
 }

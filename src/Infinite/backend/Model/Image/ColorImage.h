@@ -2,12 +2,14 @@
 #define VULKAN_COLORIMAGE_H
 
 #pragma once
+
+
 #include "Image.h"
-#include "../../util/Includes.h"
+#include "../../Rendering/Engine.h"
 
 namespace Infinite {
 
-    class ColorImage: public Image {
+    class ColorImage : public Image {
     public:
         void create() override;
     };

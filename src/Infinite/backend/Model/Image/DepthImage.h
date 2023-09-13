@@ -2,17 +2,24 @@
 #define VULKAN_DEPTHIMAGE_H
 
 #pragma once
-#include "../../util/Includes.h"
-#include "../../util/VulkanUtils.h"
+
 #include "Image.h"
 
 namespace Infinite {
 
-    class DepthImage: public Image {
+    class DepthImage : public Image {
     public:
-        static VkFormat findDepthFormat();
 
         void create() override;
+
+        static VkFormat findDepthFormat();
+
+    private:
+
+        static VkFormat
+        findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling,
+                            VkFormatFeatureFlags features);
+
     };
 
 } // Infinite

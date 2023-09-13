@@ -1,7 +1,9 @@
+#pragma once
+
 #include "Engine.h"
 #include <set>
-#include "backend/Model/Model.h"
-#include "backend/Rendering/RenderPasses/RenderPass.h"
+#include "../Model/Models/Model.h"
+#include "RenderPasses/RenderPass.h"
 
 namespace Infinite {
 
@@ -16,7 +18,7 @@ namespace Infinite {
         Engine::getEngine().endSingleTimeCommands(commandBuffer, imagePool);
     }
 
-    void createVertexBuffer(BufferAlloc vertexBuffer, std::vector<Vertex> vertices) {
+    void createVertexBuffer(BufferAlloc &vertexBuffer, std::vector<Vertex> vertices) {
         VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
         BufferAlloc stagingBuffer{};
@@ -38,7 +40,7 @@ namespace Infinite {
         vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
     }
 
-    void createIndexBuffer(BufferAlloc indexBuffer, std::vector<uint32_t> indices) {
+    void createIndexBuffer(BufferAlloc &indexBuffer, std::vector<uint32_t> indices) {
         VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
         BufferAlloc stagingBuffer{};
@@ -63,8 +65,8 @@ namespace Infinite {
         uint32_t glfwExtensionCount = 0;
         const char **glfwExtensions;
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
         std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
 
         if (enableValidationLayers) {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -77,7 +79,7 @@ namespace Infinite {
     void Engine::cleanUpInfinite() {
         cleanupSwapChain();
 
-//        camera.~Camera(); // unnecessary
+//        camera.~Camera(); // done
 
 //        vkDestroySampler(device, textureSampler, nullptr);
 //        vkDestroyImageView(device, textureImageView, nullptr);
@@ -107,6 +109,7 @@ namespace Infinite {
 //        }
 //
 //        vkDestroyCommandPool(Engine::getEngine().getInstance(), commandPool, nullptr);
+// all done
 
         vmaDestroyAllocator(allocator);
 
@@ -126,10 +129,12 @@ namespace Infinite {
     }
 
     void Engine::createEngine() {
+        initWindow(); // err
         createInstance();
         setupDebugMessenger();
-        initWindow();
+        createSurface();
         pickDevices();
+
 
         VmaAllocatorCreateInfo allocatorInfo = {};
         allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
@@ -202,7 +207,7 @@ namespace Infinite {
 
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
         if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size()); //check
             createInfo.ppEnabledLayerNames = validationLayers.data();
 
             populateDebugMessengerCreateInfo(debugCreateInfo);
@@ -221,6 +226,7 @@ namespace Infinite {
     // ToDo: change
     void Engine::pickPhysicalDevice() {
         uint32_t deviceCount = 0;
+
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
         if (deviceCount == 0) {
@@ -230,10 +236,12 @@ namespace Infinite {
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
+
+        // err
         for (const auto &pDeviceT: devices) {
             if (isDeviceSuitable(pDeviceT)) {
                 physicalDevice = pDeviceT;
-                settings->setMsaaSamples(getMaxUsableSampleCount());
+                msaaSamples = getMaxUsableSampleCount();
                 break;
             }
         }
@@ -285,7 +293,6 @@ namespace Infinite {
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
             throw std::runtime_error("failed to createExtras logical device!");
         }
-
         vkGetDeviceQueue(device, queueFamilies.graphicsFamily.value(), 0, &graphicsQueue);
         vkGetDeviceQueue(device, queueFamilies.presentFamily.value(), 0, &graphicsQueue);
     }
@@ -307,7 +314,6 @@ namespace Infinite {
         if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
         if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
         if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
-
         return VK_SAMPLE_COUNT_1_BIT;
     }
 
@@ -490,7 +496,7 @@ namespace Infinite {
             swapChainImageViews[i] = Image::createImageView(swapChainImages[i], swapChainImageFormat, 1);
     }
 
-    void Engine::createFramebuffers(RenderPass &renderPass , uint32_t renderPasses) {
+    void Engine::createFramebuffers(RenderPass &renderPass, uint32_t renderPasses) {
         swapChainFramebuffers.resize(renderPasses);
         for (auto &swapChainFramebuffer: swapChainFramebuffers) {
             swapChainFramebuffer.resize(swapChainImageViews.size());
@@ -498,14 +504,14 @@ namespace Infinite {
 
         for (size_t i = 0; i < swapChainImageViews.size(); i++) {
             std::array<VkImageView, 3> attachments = {
-                    *renderPass.colorImageReasource->getImageView(),
-                    *renderPass.depthImageReasource->getImageView(),
+                    *renderPass.getColorImageReasource()->getImageView(),
+                    *renderPass.getDepthImageReasource()->getImageView(),
                     swapChainImageViews[i]
             };
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = renderPass.renderPass;
+            framebufferInfo.renderPass = renderPass.getRenderPass();
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = swapChainExtent.width;
@@ -536,8 +542,8 @@ namespace Infinite {
 
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
         glfwSetWindowUserPointer(window, this);
+
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-        createSurface();
     }
 
     void Engine::framebufferResizeCallback(GLFWwindow *window, int width, int height) {
@@ -548,6 +554,7 @@ namespace Infinite {
         if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error("failed to createExtras window surface!");
         }
+
     }
 
     VkSurfaceFormatKHR Engine::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
@@ -647,20 +654,6 @@ namespace Infinite {
         return swapChainImageFormat;
     }
 
-    VkShaderModule Engine::createShaderModule(const std::vector<char> &code) {
-        VkShaderModuleCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = code.size();
-        createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
-
-        VkShaderModule shaderModule;
-        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) !=
-            VK_SUCCESS) {
-            throw std::runtime_error("failed to createExtras shader module!");
-        }
-
-        return shaderModule;
-    }
 
     VkCommandBuffer Engine::beginSingleTimeCommands(VkCommandPool commandPool) {
         VkCommandBufferAllocateInfo allocInfo{};
@@ -771,5 +764,9 @@ namespace Infinite {
 
     void Engine::setFramebufferResized(bool framebufferResized) {
         Engine::framebufferResized = framebufferResized;
+    }
+
+    VkSwapchainKHR_T *Engine::getSwapChain() {
+        return swapChain;
     }
 }
