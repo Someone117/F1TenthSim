@@ -3,34 +3,34 @@
 
 #pragma once
 
-
 #include "Image.h"
 
-#include <utility>
 #include "sbt_image.h"
+#include <utility>
 
 namespace Infinite {
 
-    class TexturedImage : public Image {
-    private:
-        VkSampler _sampler;
-        const char *_filePath;
+class TexturedImage : public Image {
+private:
+  VkSampler _sampler;
+  const char *_filePath;
 
-        void createSampler();
+  void createSampler();
 
-    public:
-        explicit TexturedImage(const char *filePath) : _filePath(filePath) {}
+public:
+  explicit TexturedImage(const char *filePath) : _filePath(filePath) {}
 
-        void create() override;
+  void create(unsigned int width, unsigned int height, VkFormat colorFormat,
+              VkPhysicalDevice physicalDevice, VmaAllocator allocator) override;
 
-        void destroy(VmaAllocator allocator) override;
+  void destroy(VmaAllocator allocator) override;
 
-        static void generateMipmaps(Image *image, VkFormat format, int width, int height, uint32_t levels);
+  static void generateMipmaps(Image *image, VkFormat format, int width,
+                              int height, uint32_t levels);
 
-        VkSampler *getSampler();
+  VkSampler *getSampler();
+};
 
-    };
+} // namespace Infinite
 
-} // Infinite
-
-#endif //VULKAN_TEXTUREDIMAGE_H
+#endif // VULKAN_TEXTUREDIMAGE_H

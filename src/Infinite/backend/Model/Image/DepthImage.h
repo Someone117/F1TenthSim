@@ -7,21 +7,20 @@
 
 namespace Infinite {
 
-    class DepthImage : public Image {
-    public:
+class DepthImage : public Image {
+public:
+  void create(unsigned int width, unsigned int height, VkFormat colorFormat,
+              VkPhysicalDevice physicalDevice, VmaAllocator allocator) override;
 
-        void create() override;
+  static VkFormat findDepthFormat(VkPhysicalDevice physicalDevice);
 
-        static VkFormat findDepthFormat();
+private:
+  static VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates,
+                                      VkImageTiling tiling,
+                                      VkFormatFeatureFlags features,
+                                      VkPhysicalDevice physicalDevice);
+};
 
-    private:
+} // namespace Infinite
 
-        static VkFormat
-        findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling,
-                            VkFormatFeatureFlags features);
-
-    };
-
-} // Infinite
-
-#endif //VULKAN_DEPTHIMAGE_H
+#endif // VULKAN_DEPTHIMAGE_H

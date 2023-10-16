@@ -1,196 +1,199 @@
 #ifndef VULKAN_ENGINE_H
 #define VULKAN_ENGINE_H
+#include <cstdint>
+#include <vulkan/vulkan_core.h>
 #pragma once
 
-#include "../../util/VulkanUtils.h"
-#include "../Software/App.h"
-#include "../Settings.h"
-#include "RenderPasses/RenderPass.h"
 #include "../../Infinite.h"
+#include "../../util/VulkanUtils.h"
+#include "../Settings.h"
+#include "../Software/App.h"
+#include "RenderPasses/RenderPass.h"
 
 namespace Infinite {
 
-    //Singleton
-    class Engine {
-        friend void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, RenderPass &renderPass);
+// Singleton
+class Engine {
+  friend void recordCommandBuffer(VkCommandBuffer commandBuffer,
+                                  uint32_t imageIndex, RenderPass &renderPass);
 
-    public:
+public:
+  Engine(Engine const &) = delete;
 
-        Engine(Engine const &) = delete;
+  void operator=(Engine const &) = delete;
 
-        void operator=(Engine const &) = delete;
+  Engine(Engine &&) = delete;
 
-        Engine(Engine &&) = delete;
+  Engine &operator=(Engine &&) = delete;
 
-        Engine &operator=(Engine &&) = delete;
+  static Engine &getEngine();
 
-        static Engine &getEngine();
+  VkInstance_T *getInstance();
 
-        VkInstance_T *getInstance();
+  void setApp(App _app);
 
-        void setApp(App _app);
+  uint32_t getCurrentFrame() const;
 
-        uint32_t getCurrentFrame() const;
+  void setCurrentFrame(uint32_t currentFrame);
 
-        void setCurrentFrame(uint32_t currentFrame);
+  void cleanUpInfinite();
 
-        void cleanUpInfinite();
+  GLFWwindow *getWindow();
 
-        GLFWwindow *getWindow();
+  static void waitForNextFrame();
 
-        static void waitForNextFrame();
+  void createEngine();
 
-        void createEngine();
+  static SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
 
-        static SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+  VkQueue_T *getGraphicsQueue();
 
-        VkQueue_T *getGraphicsQueue();
+  void recreateSwapChain();
 
+private:
+  bool framebufferResized;
 
-        void recreateSwapChain();
+public:
+  VkSwapchainKHR_T *getSwapChain();
 
-    private:
-        bool framebufferResized;
-    public:
-        VkSwapchainKHR_T *getSwapChain();
+  bool isFramebufferResized() const;
 
-        bool isFramebufferResized() const;
+  void setFramebufferResized(bool framebufferResized);
 
-        void setFramebufferResized(bool framebufferResized);
+private:
+  VkInstance instance;
 
-    private:
+  VkQueue graphicsQueue;
 
-        VkInstance instance;
+  App app = App(nullptr, 0, 0, 0);
 
-        VkQueue graphicsQueue;
+  uint32_t currentFrame = 0;
 
-        App app = App(nullptr, 0, 0, 0);
+  Engine(){};
 
-        uint32_t currentFrame = 0;
+  void createInstance();
 
-        Engine() {};
+  VkSampleCountFlagBits getMaxUsableSampleCount();
 
-        void createInstance();
+  void pickPhysicalDevice();
 
+  void pickDevices();
 
-        VkSampleCountFlagBits getMaxUsableSampleCount();
+  void createLogicalDevice();
 
-        void pickPhysicalDevice();
+  // Swap Chain public
+public:
+  VkFormat getSwapChainImageFormat() const;
 
-        void pickDevices();
+private:
+  void cleanupSwapChain();
 
-        void createLogicalDevice();
+  void createSwapChain();
 
-        // Swap Chain public
-    public:
-        VkFormat getSwapChainImageFormat() const;
+  void createImageViews();
 
-    private:
+  // Swap Chain private
+  VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
 
-        void cleanupSwapChain();
+  VkSwapchainKHR swapChain;
+  std::vector<VkImage> swapChainImages;
+  VkExtent2D swapChainExtent;
+  std::vector<VkImageView> swapChainImageViews;
+  std::vector<std::vector<VkFramebuffer>> swapChainFramebuffers;
 
-        void createSwapChain();
+  static VkPresentModeKHR chooseSwapPresentMode(
+      const std::vector<VkPresentModeKHR> &availablePresentModes);
 
-        void createImageViews();
+  // Window
+  VkSurfaceKHR surface;
 
+  GLFWwindow *window;
 
-        // Swap Chain private
-        VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
+  static void framebufferResizeCallback(GLFWwindow *window, int width,
+                                        int height);
 
-        VkSwapchainKHR swapChain;
-        std::vector<VkImage> swapChainImages;
-        VkExtent2D swapChainExtent;
-        std::vector<VkImageView> swapChainImageViews;
-        std::vector<std::vector<VkFramebuffer>> swapChainFramebuffers;
+  void createSurface();
 
-        static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
+  static VkSurfaceFormatKHR chooseSwapSurfaceFormat(
+      const std::vector<VkSurfaceFormatKHR> &availableFormats);
 
+  void initWindow();
 
-        //Window
-        VkSurfaceKHR surface;
+  // Logging
+  void setupDebugMessenger();
 
-        GLFWwindow *window;
+  VKAPI_ATTR static VkBool32 VKAPI_CALL
+  debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                VkDebugUtilsMessageTypeFlagsEXT messageType,
+                const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+                void *pUserData);
 
-        static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
+  static VkResult CreateDebugUtilsMessengerEXT(
+      VkInstance instance,
+      const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+      const VkAllocationCallbacks *pAllocator,
+      VkDebugUtilsMessengerEXT *pDebugMessenger);
 
-        void createSurface();
+  VkDebugUtilsMessengerEXT debugMessenger;
 
-        static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
+  VkDebugUtilsMessengerEXT *getDebugMessenger();
 
-        void initWindow();
+  static void
+  DestroyDebugUtilsMessengerEXT(VkInstance instance,
+                                VkDebugUtilsMessengerEXT debugMessenger,
+                                const VkAllocationCallbacks *pAllocator);
 
-        // Logging
-        void setupDebugMessenger();
+  bool checkValidationLayerSupport();
 
-        VKAPI_ATTR static VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                                                            VkDebugUtilsMessageTypeFlagsEXT messageType,
-                                                            const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-                                                            void *pUserData);
+  const std::vector<const char *> validationLayers = {
+      "VK_LAYER_KHRONOS_validation"};
 
-        static VkResult
-        CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-                                     const VkAllocationCallbacks *pAllocator,
-                                     VkDebugUtilsMessengerEXT *pDebugMessenger);
+  void initLogger();
 
-        VkDebugUtilsMessengerEXT debugMessenger;
+  static void populateDebugMessengerCreateInfo(
+      VkDebugUtilsMessengerCreateInfoEXT &createInfo);
 
+  static bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
-        VkDebugUtilsMessengerEXT *getDebugMessenger();
+public:
+  // Swap Chain size
+  unsigned int getWindowWidth();
 
-        static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
-                                                  const VkAllocationCallbacks *pAllocator);
+  unsigned int getWindowHeight();
 
+  // Render
+  friend class Model;
 
-        bool checkValidationLayerSupport();
+  VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);
 
-        const std::vector<const char *> validationLayers = {
-                "VK_LAYER_KHRONOS_validation"
-        };
+  void endSingleTimeCommands(VkCommandBuffer commandBuffer,
+                             VkCommandPool commandPool);
 
-        void initLogger();
+  QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
-        static void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
+  bool isDeviceSuitable(VkPhysicalDevice pDevice);
 
+  void createFramebuffers(Infinite::RenderPass &renderPass,
+                          uint32_t renderPasses);
 
-        static bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+  VkExtent2D getSwapChainExtent() const;
 
-    public:
+  VkFramebuffer getSwapChainFrameBuffer(uint32_t i, uint32_t j);
+};
 
-        //Logging
+void copyBuffer(BufferAlloc srcBuffer, BufferAlloc dstBuffer,
+                VkDeviceSize size);
 
+void createVertexBuffer(BufferAlloc &vertexBuffer,
+                        std::vector<Vertex> vertices);
 
-        // Swap Chain size
-        unsigned int getWindowWidth();
+void createIndexBuffer(BufferAlloc &indexBuffer, std::vector<uint32_t> indices);
 
-        unsigned int getWindowHeight();
+static std::vector<const char *> getRequiredExtensions();
 
-        //Render
-        friend class Model;
+} // namespace Infinite
 
-        VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);
-
-        void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool commandPool);
-
-        QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
-
-        bool isDeviceSuitable(VkPhysicalDevice pDevice);
-
-        void createFramebuffers(Infinite::RenderPass &renderPass, uint32_t renderPasses);
-    };
-
-
-    static void copyBuffer(BufferAlloc srcBuffer, BufferAlloc dstBuffer, VkDeviceSize size);
-
-    void createVertexBuffer(BufferAlloc &vertexBuffer, std::vector<Vertex> vertices);
-
-    void createIndexBuffer(BufferAlloc &indexBuffer, std::vector<uint32_t> indices);
-
-    static std::vector<const char *> getRequiredExtensions();
-
-
-}
-
-#include "../Model/Image/DepthImage.h"
 #include "../Model/Image/ColorImage.h"
+#include "../Model/Image/DepthImage.h"
 
-#endif //VULKAN_ENGINE_H
+#endif // VULKAN_ENGINE_H

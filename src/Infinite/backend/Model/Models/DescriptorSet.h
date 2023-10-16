@@ -1,37 +1,38 @@
-//
-// Created by Someo on 9/12/2023.
-//
-
 #ifndef VULKAN_DESCRIPTORSET_H
 #define VULKAN_DESCRIPTORSET_H
 
-
-#include <vulkan/vulkan_core.h>
+#include "../../../util/VulkanUtils.h"
 #include <vector>
+#include <vulkan/vulkan_core.h>
 
 namespace Infinite {
 
-    class DescriptorSet {
+class DescriptorSet {
 
-        inline static VkDescriptorPool descriptorPool;
+  inline static VkDescriptorPool descriptorPool;
 
-        std::vector<VkDescriptorSet> descriptorSets;
+  std::vector<VkDescriptorSet> descriptorSets;
 
-        void createDescriptorSets();
+  void createDescriptorSets();
 
-        inline static VkDescriptorSetLayout descriptorSetLayout;
+  inline static VkDescriptorSetLayout descriptorSetLayout;
 
-        static void createDescriptorPool(VkDevice device);
+public:
+  static void createDescriptorPool(VkDevice device);
 
-        static void createDescriptorSetLayout(VkDevice device);
+  static VkDescriptorSetLayout
+  createDescriptorSetLayout(VkDevice device, VkDescriptorSetLayout *setLayout);
 
+  const std::vector<VkDescriptorSet> &getDescriptorSets() const;
 
-    public:
-        const std::vector<VkDescriptorSet> &getDescriptorSets() const;
+  DescriptorSet(VkDevice device, std::vector<BufferAlloc> uniformBuffers,
+                VkImageView textureView, VkSampler textureSampler);
+  static void cleanUpDescriptors(VkDevice device);
+  void destroy(VkDevice device);
 
-        DescriptorSet(VkDevice device, std::vector<BufferAlloc> uniformBuffers, VkImageView textureView, VkSampler textureSampler);
-    };
+  DescriptorSet();
+};
 
-} // Infinite
+} // namespace Infinite
 
-#endif //VULKAN_DESCRIPTORSET_H
+#endif // VULKAN_DESCRIPTORSET_H

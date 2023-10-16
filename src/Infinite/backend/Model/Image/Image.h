@@ -7,39 +7,44 @@
 
 namespace Infinite {
 
-    class Image {
-    protected:
-        VkImageView _image_view;
+class Image {
+protected:
+  VkImageView _image_view;
 
-        static void copyBufferToImage(BufferAlloc buffer, Image *image, uint32_t width, uint32_t height);
+  static void copyBufferToImage(BufferAlloc buffer, Image *image,
+                                uint32_t width, uint32_t height);
 
-        static void
-        transitionImageLayout(Image *image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
-                              uint32_t mipLevels = 1);
+  static void transitionImageLayout(Image *image, VkFormat format,
+                                    VkImageLayout oldLayout,
+                                    VkImageLayout newLayout,
+                                    uint32_t mipLevels = 1);
 
-        static void
-        createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling,
-                    VkImageUsageFlags usage,
-                    ImageAlloc &image, VkSampleCountFlagBits numSamples = VK_SAMPLE_COUNT_1_BIT);
+  static void
+  createImage(uint32_t width, uint32_t height, uint32_t mipLevels,
+              VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+              ImageAlloc &image,
+              VkSampleCountFlagBits numSamples = VK_SAMPLE_COUNT_1_BIT);
 
+  ImageAlloc _image;
 
-        ImageAlloc _image;
-    public:
-        virtual void create();
+public:
+  virtual void create(unsigned int width, unsigned int height,
+                      VkFormat colorFormat, VkPhysicalDevice physicalDevice,
+                      VmaAllocator allocator);
 
-        VkImageView *getImageView();
+  VkImageView *getImageView();
 
-        ImageAlloc &getImage();
+  ImageAlloc &getImage();
 
-        friend class SwapChain;
+  friend class SwapChain;
 
-        virtual void destroy(VmaAllocator allocator);
+  virtual void destroy(VmaAllocator allocator);
 
-        static VkImageView createImageView(VkImage image, VkFormat format, uint32_t mipLevels,
-                                           VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
+  static VkImageView
+  createImageView(VkImage image, VkFormat format, uint32_t mipLevels,
+                  VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
+};
 
-    };
+} // namespace Infinite
 
-} // Infinite
-
-#endif //VULKAN_IMAGE_H
+#endif // VULKAN_IMAGE_H

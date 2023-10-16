@@ -3,17 +3,16 @@
 
 #pragma once
 
-
 #include "Image.h"
-#include "../../Rendering/Engine.h"
 
 namespace Infinite {
 
-    class ColorImage : public Image {
-    public:
-        void create() override;
-    };
+class ColorImage : public Image {
+public:
+  void create(unsigned int width, unsigned int height, VkFormat colorFormat,
+              VkPhysicalDevice physicalDevice, VmaAllocator allocator) override;
+};
 
-} // Infinite
+} // namespace Infinite
 
-#endif //VULKAN_COLORIMAGE_H
+#endif // VULKAN_COLORIMAGE_H

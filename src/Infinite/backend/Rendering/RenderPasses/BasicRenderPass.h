@@ -7,12 +7,13 @@
 
 namespace Infinite {
 
-    class BasicRenderPass : public RenderPass {
-    public:
-        void createRenderPass() override;
+class BasicRenderPass : public RenderPass {
+public:
+  void createRenderPass(VkDevice device, VkPhysicalDevice physicalDevice,
+                        VkFormat swapChainImageFormat,
+                        VkSampleCountFlagBits msaaSamples) override;
+};
 
-    };
+} // namespace Infinite
 
-} // Infinite
-
-#endif //VULKAN_BASICRENDERPASS_H
+#endif // VULKAN_BASICRENDERPASS_H

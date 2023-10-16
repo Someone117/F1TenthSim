@@ -6,14 +6,14 @@
 #include "../../util/Includes.h"
 
 namespace Infinite {
-    class RenderPass;
+class RenderPass;
 
-    struct CommandBuffer {
-        std::vector<VkCommandBuffer> commandBuffers;
+struct CommandBuffer {
+  std::vector<VkCommandBuffer> commandBuffers;
 
-        void create(VkCommandPool &pool);
-    };
+  void create(VkCommandPool &pool, VkDevice device);
+};
 
-} // Infinite
+} // namespace Infinite
 
-#endif //VULKAN_COMMANDBUFFER_H
+#endif // VULKAN_COMMANDBUFFER_H

@@ -4,7 +4,7 @@
 
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
-#include <vma/vk_mem_alloc.h>
+#include "../../../libs/vk_mem_alloc.h"
 #include <stdexcept>
 #include <vector>
 #include <iostream>
@@ -18,8 +18,6 @@
 #endif
 
 namespace Infinite {
-
-
 }
 
 #endif //VULKAN_INCLUDES_H

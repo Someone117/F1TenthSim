@@ -1,89 +1,100 @@
 #ifndef VULKAN_RENDERPASS_H
 #define VULKAN_RENDERPASS_H
+#include <cstdint>
 #pragma once
 
-
-#include "../CommandBuffer.h"
-#include "../../Model/Image/DepthImage.h"
 #include "../../Model/Image/ColorImage.h"
+#include "../../Model/Image/DepthImage.h"
+#include "../CommandBuffer.h"
 
 namespace Infinite {
 
-    class Model;
+class Model;
 
-    class ColorImage;
+class ColorImage;
 
-    class DepthImage;
+class DepthImage;
 
-    extern std::vector<VkSemaphore> imageAvailableSemaphores;
-    extern std::vector<VkSemaphore> renderFinishedSemaphores;
-    extern std::vector<VkFence> inFlightFences;
-    extern VkQueue presentQueue;
+extern std::vector<VkSemaphore> imageAvailableSemaphores;
+extern std::vector<VkSemaphore> renderFinishedSemaphores;
+extern std::vector<VkFence> inFlightFences;
+extern VkQueue presentQueue;
 
+class RenderPass {
+  friend void recordCommandBuffer(VkCommandBuffer commandBuffer,
+                                  uint32_t imageIndex, RenderPass &renderPass);
 
-    class RenderPass {
-        friend void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, RenderPass &renderPass);
+  friend void renderFrame();
 
-        friend void renderFrame();
+public:
+  void destroyDepthAndColorImages(VmaAllocator allocator);
 
-    public:
+  const std::vector<Model *> &getModels() const;
 
+  virtual void createRenderPass(VkDevice device,
+                                VkPhysicalDevice physicalDevice,
+                                VkFormat swapChainImageFormat,
+                                VkSampleCountFlagBits msaaSamples);
 
-        void destroyDepthAndColorImages();
+  void createCommandBuffers(VkCommandPool commandPool,
+                            VkPhysicalDevice physicalDevice, VkDevice device,
+                            QueueFamilyIndices queueFamilyIndices);
 
-        const std::vector<Model *> &getModels() const;
+  static void createSyncObjects(VkDevice device, int maxFramesInFlight);
 
-        virtual void createRenderPass();
+  uint32_t getIndex() const;
 
-        void createCommandBuffers();
+  void setIndex(uint32_t index);
 
-        static void createSyncObjects();
+  void addModel(Model *model);
 
-        uint32_t getIndex() const;
+  void createGraphicsPipeline(VkDescriptorSetLayout setLayout, VkDevice device,
+                              VkSampleCountFlagBits msaaSamples);
 
-        void setIndex(uint32_t index);
+  void createDepthAndColorImages(unsigned int width, unsigned int height,
+                                 VkFormat colorFormat,
+                                 VkPhysicalDevice physicalDevice,
+                                 VmaAllocator allocator);
 
-        void addModel(Model *model);
+  ColorImage *getColorImageReasource() const;
 
-        static void createCommandPool(VkCommandPool &pool);
+  DepthImage *getDepthImageReasource() const;
 
-        void createGraphicsPipeline();
+  void destroy(VkDevice device, VmaAllocator allocator, int maxFramesInFlight);
 
-        void createDepthAndColorImages();
+  VkRenderPass_T *getRenderPass();
 
-        ColorImage *getColorImageReasource() const;
+  VkPipeline getGraphicsPipeline() const;
 
-        DepthImage *getDepthImageReasource() const;
+  VkPipelineLayout getPipelineLayout() const;
 
-        void destroy();
+  VkCommandBuffer getCommandBuffer(uint32_t index);
+  uint32_t getIndex();
 
-        VkRenderPass_T *getRenderPass();
+protected:
+  VkRenderPass renderPass;
 
+  ColorImage *colorImageReasource;
+  DepthImage *depthImageReasource;
 
-    protected:
+  VkPipelineLayout pipelineLayout;
+  VkPipeline graphicsPipeline;
 
+  VkCommandPool commandPool;
 
-        VkRenderPass renderPass;
+  std::vector<Model *> models;
 
-        ColorImage *colorImageReasource;
-        DepthImage *depthImageReasource;
+  uint32_t index;
 
-        VkPipelineLayout pipelineLayout;
-        VkPipeline graphicsPipeline;
+  friend struct CommandBuffer;
 
-        VkCommandPool commandPool;
+  friend class Image;
 
-        std::vector<Model *> models;
+  CommandBuffer commandBufferManager;
+};
+VkShaderModule createShaderModule(const std::vector<char> &code,
+                                  VkDevice device);
 
-        uint32_t index;
+} // namespace Infinite
 
-        friend struct CommandBuffer;
-
-        friend class Image;
-
-        CommandBuffer commandBufferManager;
-    };
-
-} // Infinite
-
-#endif //VULKAN_RENDERPASS_H
+#endif // VULKAN_RENDERPASS_H

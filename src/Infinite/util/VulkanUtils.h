@@ -3,80 +3,81 @@
 
 #pragma once
 
-
 #include "Includes.h"
-#include <optional>
 #include <array>
+#include <optional>
+
 
 namespace Infinite {
 #ifdef NDEBUG
-    const static bool enableValidationLayers = false;
+const static bool enableValidationLayers = false;
 #else
-    const static bool enableValidationLayers = true;
+const static bool enableValidationLayers = true;
 #endif
 
-    struct BufferAlloc {
-        VkBuffer buffer;
-        VmaAllocation allocation;
-    };
+struct BufferAlloc {
+  VkBuffer buffer;
+  VmaAllocation allocation;
+};
 
-    struct ImageAlloc {
-        VkImage image;
-        VmaAllocation allocation;
+struct ImageAlloc {
+  VkImage image;
+  VmaAllocation allocation;
 
-        void destroy(VmaAllocator allocator) const;
-    };
+  void destroy(VmaAllocator allocator) const;
+};
 
-    struct Vertex {
-        glm::vec3 pos;
-        glm::vec2 texCoord;
+struct Vertex {
+  glm::vec3 pos;
+  glm::vec2 texCoord;
 
-        Vertex(const glm::vec3 &pos, const glm::vec2 &texCoord) : pos(pos), texCoord(texCoord) {}
+  Vertex(const glm::vec3 &pos, const glm::vec2 &texCoord)
+      : pos(pos), texCoord(texCoord) {}
 
-        static VkVertexInputBindingDescription getBindingDescription();
+  static VkVertexInputBindingDescription getBindingDescription();
 
-        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();
+  static std::array<VkVertexInputAttributeDescription, 2>
+  getAttributeDescriptions();
 
-        bool operator==(const Vertex &other) const {
-            return pos == other.pos && texCoord == other.texCoord;
-        }
-    };
+  bool operator==(const Vertex &other) const {
+    return pos == other.pos && texCoord == other.texCoord;
+  }
+};
 
-    struct UniformBufferObject {
-        alignas(16) glm::mat4 model;
-        alignas(16) glm::mat4 view;
-        alignas(16) glm::mat4 proj;
-    };
+struct UniformBufferObject {
+  alignas(16) glm::mat4 model;
+  alignas(16) glm::mat4 view;
+  alignas(16) glm::mat4 proj;
+};
 
-    struct SwapChainSupportDetails {
-        VkSurfaceCapabilitiesKHR capabilities;
-        std::vector<VkSurfaceFormatKHR> formats;
-        std::vector<VkPresentModeKHR> presentModes;
-    };
+struct SwapChainSupportDetails {
+  VkSurfaceCapabilitiesKHR capabilities;
+  std::vector<VkSurfaceFormatKHR> formats;
+  std::vector<VkPresentModeKHR> presentModes;
+};
 
+void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                  BufferAlloc &bufferAllocator,
+                  VkMemoryPropertyFlags memFlags = 0,
+                  VmaAllocationCreateFlags vmaFlags = 0);
 
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, BufferAlloc &bufferAllocator,
-                      VkMemoryPropertyFlags memFlags = 0, VmaAllocationCreateFlags vmaFlags = 0);
+bool hasStencilComponent(VkFormat format);
 
+std::vector<char> readFile(const std::string &filename);
 
-    bool hasStencilComponent(VkFormat format);
+struct QueueFamilyIndices {
+  std::optional<uint32_t> graphicsFamily;
+  std::optional<uint32_t> presentFamily;
 
-    std::vector<char> readFile(const std::string &filename);
+  inline bool isComplete() const {
+    return graphicsFamily.has_value() && presentFamily.has_value();
+  }
+};
 
-    struct QueueFamilyIndices {
-        std::optional<uint32_t> graphicsFamily;
-        std::optional<uint32_t> presentFamily;
+bool isDeviceSuitable(VkPhysicalDevice pDevice);
 
-        inline bool isComplete() const {
-            return graphicsFamily.has_value() && presentFamily.has_value();
-        }
-    };
+bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
-    bool isDeviceSuitable(VkPhysicalDevice pDevice);
+} // namespace Infinite
 
-    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-
-}
-
-
-#endif //VULKAN_VULKANUTILS_H
+#endif // VULKAN_VULKANUTILS_H

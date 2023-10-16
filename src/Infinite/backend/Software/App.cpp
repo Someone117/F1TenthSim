@@ -1,5 +1,3 @@
-#pragma once
-
 #include "App.h"
 
 namespace Infinite {
