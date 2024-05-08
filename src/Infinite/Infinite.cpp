@@ -18,7 +18,7 @@ void initInfinite() {
   Engine::getEngine().createEngine();
 
   QueueFamilyIndices queueFamilyIndices =
-      Engine::getEngine().findQueueFamilies(physicalDevice);
+      findQueueFamilies(physicalDevice); // fix this hell
 
   createCommandPool(imagePool, device, queueFamilyIndices);
 
@@ -28,10 +28,19 @@ void initInfinite() {
   }
 
   VkDescriptorSetLayout setLayout;
-  setLayout = DescriptorSet::createDescriptorSetLayout(device, &setLayout);
+
+  std::vector<DescriptorSetLayout> layout = {
+      {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT},
+      {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+       VK_SHADER_STAGE_FRAGMENT_BIT},
+      {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT},
+      {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT},
+      {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT}};
+  setLayout =
+      DescriptorSet::createDescriptorSetLayout(device, &setLayout, layout);
 
   for (const auto &r : renderPasses) {
-    r->createGraphicsPipeline(setLayout, device, msaaSamples);
+    r->createPipeline(setLayout, device, msaaSamples);
 
     r->createDepthAndColorImages(Engine::getEngine().getWindowWidth(),
                                  Engine::getEngine().getWindowHeight(),

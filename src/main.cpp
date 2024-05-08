@@ -58,6 +58,8 @@ void mainLoop() {
   int f = 0;
   double frameTimes = 0;
 
+  #define SENSITIVITY 0.0001
+
   if (glfwRawMouseMotionSupported()) // make a setting
     glfwSetInputMode(Engine::getEngine().getWindow(), GLFW_RAW_MOUSE_MOTION,
                      GLFW_TRUE);
@@ -104,9 +106,11 @@ void mainLoop() {
       // looking
       camera.mouse(
           (std::floor(xpos - Engine::getEngine().getWindowWidth() / 2.0f) *
-           spf),
+           spf) *
+              SENSITIVITY,
           (std::floor((ypos - Engine::getEngine().getWindowHeight() / 2.0f)) *
-           spf));
+           spf) *
+              SENSITIVITY);
 
       // movement
       if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_W)) {

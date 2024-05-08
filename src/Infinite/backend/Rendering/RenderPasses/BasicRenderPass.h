@@ -12,6 +12,10 @@ public:
   void createRenderPass(VkDevice device, VkPhysicalDevice physicalDevice,
                         VkFormat swapChainImageFormat,
                         VkSampleCountFlagBits msaaSamples) override;
+  void
+  createPipeline(VkDescriptorSetLayout setLayout,
+                                  VkDevice device,
+                                  VkSampleCountFlagBits msaaSamples, std::vector<VkPipelineShaderStageCreateInfo> extraShaders = {}) override;
 };
 
 } // namespace Infinite

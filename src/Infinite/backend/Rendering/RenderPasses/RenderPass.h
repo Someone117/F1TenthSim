@@ -48,8 +48,8 @@ public:
 
   void addModel(Model *model);
 
-  void createGraphicsPipeline(VkDescriptorSetLayout setLayout, VkDevice device,
-                              VkSampleCountFlagBits msaaSamples);
+  virtual void createPipeline(VkDescriptorSetLayout setLayout, VkDevice device,
+                              VkSampleCountFlagBits msaaSamples, std::vector<VkPipelineShaderStageCreateInfo> extraShaders = {});
 
   void createDepthAndColorImages(unsigned int width, unsigned int height,
                                  VkFormat colorFormat,

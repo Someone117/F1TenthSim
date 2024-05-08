@@ -1,6 +1,7 @@
 #include "Engine.h"
 #include "../Model/Models/Model.h"
 #include "RenderPasses/RenderPass.h"
+#include <cstdint>
 #include <cstring>
 #include <set>
 
@@ -221,12 +222,12 @@ void Engine::pickPhysicalDevice() {
 }
 
 void Engine::createLogicalDevice() {
-  QueueFamilyIndices queueFamilies = findQueueFamilies(physicalDevice);
 
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-  std::set<uint32_t> uniqueQueueFamilies = {
-      queueFamilies.graphicsFamily.value(),
-      queueFamilies.presentFamily.value()};
+  uint32_t uniqueQueueFamilies[static_cast<int>(QueueOrder::Count)];
+  for (uint32_t i = 0; i < static_cast<int>(QueueOrder::Count); i++) {
+    uniqueQueueFamilies[i] = queues[i].getIndex().index.value();
+  }
 
   float queuePriority = 1.0f;
   for (uint32_t queueFamily : uniqueQueueFamilies) {
@@ -268,10 +269,9 @@ void Engine::createLogicalDevice() {
       VK_SUCCESS) {
     throw std::runtime_error("failed to create logical device!");
   }
-  vkGetDeviceQueue(device, queueFamilies.graphicsFamily.value(), 0,
-                   &graphicsQueue);
-  vkGetDeviceQueue(device, queueFamilies.presentFamily.value(), 0,
-                   &presentQueue);
+  for (auto &queue : queues) {
+    queue.createQueue(device);
+  }
 }
 
 void Engine::pickDevices() {
@@ -382,11 +382,14 @@ void Engine::createSwapChain() {
   createInfo.imageArrayLayers = 1;
   createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-  QueueFamilyIndices familyIndices = findQueueFamilies(physicalDevice);
-  uint32_t queueFamilyIndices[] = {familyIndices.graphicsFamily.value(),
-                                   familyIndices.presentFamily.value()};
+  std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+  uint32_t queueFamilyIndices[static_cast<int>(QueueOrder::Count)];
+  for (uint32_t i = 0; i < static_cast<int>(QueueOrder::Count); i++) {
+    queueFamilyIndices[i] = queues[i].getIndex().index.value();
+  }
 
-  if (familyIndices.graphicsFamily != familyIndices.presentFamily) {
+  if (queues[static_cast<int>(QueueOrder::GRAPHICS)].getIndex().index !=
+      queues[static_cast<int>(QueueOrder::PRESENT)].getIndex().index) {
     createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
     createInfo.queueFamilyIndexCount = 2;
     createInfo.pQueueFamilyIndices = queueFamilyIndices;
@@ -678,48 +681,14 @@ void Engine::endSingleTimeCommands(VkCommandBuffer commandBuffer,
   submitInfo.commandBufferCount = 1;
   submitInfo.pCommandBuffers = &commandBuffer;
 
-  vkQueueSubmit(Engine::getEngine().graphicsQueue, 1, &submitInfo,
-                VK_NULL_HANDLE);
-  vkQueueWaitIdle(Engine::getEngine().graphicsQueue);
+  queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].submit(submitInfo);
+  queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].waitIdle();
 
   vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
-QueueFamilyIndices Engine::findQueueFamilies(VkPhysicalDevice device) {
-  QueueFamilyIndices indices;
-
-  uint32_t queueFamilyCount = 0;
-  vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-  std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-  vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount,
-                                           queueFamilies.data());
-
-  int i = 0;
-  for (const auto &queueFamily : queueFamilies) {
-    if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-      indices.graphicsFamily = i;
-    }
-
-    VkBool32 presentSupport = false;
-    vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
-
-    if (presentSupport) {
-      indices.presentFamily = i;
-    }
-
-    if (indices.isComplete()) {
-      break;
-    }
-
-    i++;
-  }
-
-  return indices;
-}
-
 bool Engine::isDeviceSuitable(VkPhysicalDevice pDevice) {
-  QueueFamilyIndices familyIndicies = findQueueFamilies(pDevice);
+  findQueueFamilies(physicalDevice, queues);
 
   bool extensionsSupported = checkDeviceExtensionSupport(pDevice);
 
@@ -733,11 +702,17 @@ bool Engine::isDeviceSuitable(VkPhysicalDevice pDevice) {
                         !swapChainSupport.presentModes.empty();
   }
 
-  return familyIndicies.isComplete() && extensionsSupported &&
+  bool allIndicesFound = true;
+    for (uint32_t k = 0; k < static_cast<uint32_t>(QueueOrder::Count); k++) {
+      if (!queues[k].getIndex().index.has_value()) {
+        allIndicesFound = false;
+        break;
+      }
+    }
+
+  return allIndicesFound && extensionsSupported &&
          swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
-
-VkQueue_T *Engine::getGraphicsQueue() { return graphicsQueue; }
 
 bool Engine::checkDeviceExtensionSupport(VkPhysicalDevice device) {
   uint32_t extensionCount;

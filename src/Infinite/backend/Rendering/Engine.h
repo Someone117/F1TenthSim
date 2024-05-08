@@ -1,8 +1,9 @@
 #ifndef VULKAN_ENGINE_H
 #define VULKAN_ENGINE_H
+#pragma once
+#include "Queues/Queue.h"
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
-#pragma once
 
 #include "../../Infinite.h"
 #include "../../util/VulkanUtils.h"
@@ -17,7 +18,11 @@ class Engine {
   friend void recordCommandBuffer(VkCommandBuffer commandBuffer,
                                   uint32_t imageIndex, RenderPass &renderPass);
 
+private:
+  VkSurfaceKHR surface;
+
 public:
+  VkSurfaceKHR getSurface() const { return surface; }
   Engine(Engine const &) = delete;
 
   void operator=(Engine const &) = delete;
@@ -46,12 +51,15 @@ public:
 
   static SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
 
-  VkQueue_T *getGraphicsQueue();
-
   void recreateSwapChain();
 
 private:
   bool framebufferResized;
+
+  Queue queues[static_cast<int>(QueueOrder::Count)] = {
+      Queue(QueueIndex{QueueType::GRAPHICS, std::nullopt}),
+      Queue(QueueIndex{QueueType::COMPUTE, std::nullopt}),
+      Queue(QueueIndex{QueueType::PRESENT, std::nullopt})}; // specific order
 
 public:
   VkSwapchainKHR_T *getSwapChain();
@@ -62,8 +70,6 @@ public:
 
 private:
   VkInstance instance;
-
-  VkQueue graphicsQueue;
 
   App app = App(nullptr, 0, 0, 0);
 
@@ -103,9 +109,6 @@ private:
 
   static VkPresentModeKHR chooseSwapPresentMode(
       const std::vector<VkPresentModeKHR> &availablePresentModes);
-
-  // Window
-  VkSurfaceKHR surface;
 
   GLFWwindow *window;
 
@@ -168,8 +171,6 @@ public:
 
   void endSingleTimeCommands(VkCommandBuffer commandBuffer,
                              VkCommandPool commandPool);
-
-  QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
   bool isDeviceSuitable(VkPhysicalDevice pDevice);
 
