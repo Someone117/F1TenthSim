@@ -392,6 +392,9 @@ void renderFrame() {
 
   renderPasses[1]->resetFences();
 
+
+  // hack untill it works
+  submitInformation = {};
   submitInformation.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
   VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
@@ -404,22 +407,19 @@ void renderFrame() {
   std::cout << "A" << std::endl;
 
   submitInformation.commandBufferCount = 1;
-  // submitInformation.pNext = VK_NULL_HANDLE;
 
   const VkCommandBuffer v =
       renderPasses[1]->commandBufferManager.commandBuffers[currentFrame];
   submitInformation.pCommandBuffers = &v;
-  std::cout << "A" << std::endl;
 
   VkSemaphore signalSemaphores[] = {
       renderPasses[1]
           ->getFinishedSemaphores()[currentFrame]}; // Todo: is this necessary
-  std::cout << "A" << std::endl;
 
   submitInformation.signalSemaphoreCount = 1;
   submitInformation.pSignalSemaphores = signalSemaphores;
 
-  std::cout << (*submitInformation.pWaitDstStageMask) << std::endl;
+  // crashes here
   vkQueueSubmit(queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue, 1,
                 &submitInformation,
                 renderPasses[1]->getInFlighFences()[currentFrame]);
@@ -428,8 +428,6 @@ void renderFrame() {
   //     VK_SUCCESS) {
   //   throw std::runtime_error("failed to submit draw command buffer!");
   // }
-  std::cout << "A" << std::endl;
-  exit(0);
 
   VkPresentInfoKHR presentInfo{};
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
