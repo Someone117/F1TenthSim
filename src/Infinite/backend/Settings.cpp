@@ -1,12 +1,7 @@
 #include "Settings.h"
 
 namespace Infinite {
-    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_4_BIT;
     uint32_t mipLevels;
-//
-//    Settings::Settings() = default;
-//
-//    void Settings::setMsaaSamples(VkSampleCountFlagBits msaaSamples) {
-//        Settings::msaaSamples = msaaSamples;
-//    }
+
 }

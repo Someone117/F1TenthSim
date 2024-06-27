@@ -2,9 +2,11 @@
 #define COMPUTE_RENDER_PASS_H
 
 #pragma once
-
+#include "../../../util/VulkanUtils.h"
+#include "../../Model/Models/ComputeModel.h"
 #include "../../Model/Models/DescriptorSet.h"
 #include "RenderPass.h"
+#include <glm/glm.hpp>
 
 namespace Infinite {
 struct Particle {
@@ -13,11 +15,16 @@ struct Particle {
   glm::vec4 color;
 };
 
-class ComputeRenderPass {
+class ComputeRenderPass : public RenderPass {
 private:
   std::vector<BufferAlloc> shaderStorageBufferAlloc;
   DescriptorSet descriptorSet;
   VkPipelineLayout computePipelineLayout;
+  VkPipeline computePipeline;
+
+  std::optional<ComputeModel> computeModel;
+
+  void recordComputeCommandBuffer(VkCommandBuffer commandBuffer);
 
 public:
   VkPipelineShaderStageCreateInfo
@@ -25,13 +32,43 @@ public:
   // on Compute space
   // https://vulkan-tutorial.com/Compute_Shader
 
-  void createShaderStorageBuffers(int maxFramesInFlight,
-                                  uint32_t PARTICLE_COUNT, uint32_t WIDTH,
-                                  uint32_t HEIGHT, VmaAllocator allocator);
+  void createShaderStorageBuffers(uint32_t WIDTH, uint32_t HEIGHT,
+                                  VmaAllocator allocator);
 
-  void createDescriptorSets(uint32_t PARTICLE_COUNT);
+  void createDescriptorSets();
 
-  void createComputePipeline(VkDevice device, VkDescriptorSetLayout setLayout);
+  void createPipeline(VkDescriptorSetLayout setLayout, VkDevice device,
+                      VkSampleCountFlagBits msaaSamples) override;
+
+  VkSubmitInfo renderFrame(uint32_t currentFrame) override;
+
+  void waitForFences() override;
+  void resetFences() override;
+
+  VkPipelineBindPoint getPipelineType() override;
+  VkPipeline getPipeline() override;
+  void createCommandBuffers(VkCommandPool commandPool,
+                            VkPhysicalDevice physicalDevice,
+                            VkDevice device) override;
+  void createSyncObjects(VkDevice device) override;
+
+  VkPipelineLayout getPipelineLayout() const override;
+  void destroy(VkDevice device, VmaAllocator allocator);
+
+  void recreateSwapChainWork(
+      VmaAllocator allocator, VkDevice device, VkPhysicalDevice physicalDevice,
+      VkFormat swapChainImageFormat, VkExtent2D swapChainExtent,
+      std::vector<VkImageView> swapChainImageViews) override;
+  void createRenderPass(VkDevice device, VkPhysicalDevice physicalDevice,
+                        VkFormat swapChainImageFormat,
+                        VkSampleCountFlagBits msaaSamples) override;
+
+  void preInit(
+      VkDevice device, VkPhysicalDevice physicalDevice,
+      VkFormat swapChainImageFormat, VkDescriptorSetLayout setLayout,
+      VkExtent2D swapChainExtent, VmaAllocator allocator,
+      VkSampleCountFlagBits msaaSamples,
+      std::vector<VkImageView> swapChainImageViews) override;
 };
 
 } // namespace Infinite

@@ -1,13 +1,17 @@
 #include "VulkanUtils.h"
 #include "../Infinite.h"
+#include <cstring>
 #include <fstream>
-#include <set>
-
-namespace Infinite {
+#include <iostream>
+#include <vulkan/vulkan_core.h>
+#define VMA_IMPLEMENTATION
+#include "../libs/vk_mem_alloc.h"
 
 void ImageAlloc::destroy(VmaAllocator allocator) const {
   vmaDestroyImage(allocator, image, allocation);
 }
+
+namespace Infinite {
 
 void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
                   BufferAlloc &bufferAllocator, VkMemoryPropertyFlags memFlags,
@@ -80,6 +84,55 @@ VkVertexInputBindingDescription Vertex::getBindingDescription() {
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
   return bindingDescription;
+}
+
+VkCommandBuffer beginSingleTimeCommands(VkDevice device,
+                                        VkCommandPool commandPool) {
+  VkCommandBufferAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandPool = commandPool;
+  allocInfo.commandBufferCount = 1;
+
+  VkCommandBuffer commandBuffer;
+  vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+  VkCommandBufferBeginInfo beginInfo{};
+  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+  vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+  return commandBuffer;
+}
+
+// use graphics queue
+void endSingleTimeCommands(VkDevice device, VkCommandBuffer commandBuffer,
+                           VkCommandPool commandPool, VkQueue queue) {
+  vkEndCommandBuffer(commandBuffer);
+
+  VkSubmitInfo submitInfo{};
+  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &commandBuffer;
+
+  vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+  vkQueueWaitIdle(queue);
+
+  vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+}
+
+// usually use graphics queue
+void copyBuffer(BufferAlloc srcBuffer, BufferAlloc dstBuffer, VkDeviceSize size,
+                VkQueue queue) {
+  VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, imagePool);
+
+  VkBufferCopy copyRegion{};
+  copyRegion.size = size;
+  vkCmdCopyBuffer(commandBuffer, srcBuffer.buffer, dstBuffer.buffer, 1,
+                  &copyRegion);
+
+  endSingleTimeCommands(device, commandBuffer, imagePool, queue);
 }
 
 } // namespace Infinite

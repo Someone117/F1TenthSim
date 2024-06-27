@@ -1,4 +1,5 @@
 #include "App.h"
+#include <vulkan/vulkan_core.h>
 
 namespace Infinite {
 

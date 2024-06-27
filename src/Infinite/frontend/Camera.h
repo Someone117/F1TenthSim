@@ -1,9 +1,9 @@
 #ifndef VULKAN_CAMERA_H
 #define VULKAN_CAMERA_H
 
+#include <vector>
 #pragma once
 
-#include "../util/Includes.h"
 #include <cmath>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>

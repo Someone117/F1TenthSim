@@ -1,5 +1,5 @@
 #include "ColorImage.h"
-#include "../../../Infinite.h"
+#include "../../../backend/Settings.h"
 
 namespace Infinite {
 

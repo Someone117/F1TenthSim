@@ -1,12 +1,15 @@
 #include "Queue.h"
-#include "../Engine.h"
-#include <cstdint>
+
+#include "../../../Infinite.h"
+#include <iostream>
+#include <optional>
 
 namespace Infinite {
 void findQueueFamilies(VkPhysicalDevice device,
                        Queue queues[static_cast<int>(QueueOrder::Count)]) {
 
   uint32_t queueFamilyCount = 0;
+  // error here
   vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
 
   std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
@@ -15,25 +18,25 @@ void findQueueFamilies(VkPhysicalDevice device,
 
   int i = 0;
   for (const auto &queueFamily : queueFamilies) {
+    bool allIndicesFound = true;
     for (int j = 0; j < static_cast<uint32_t>(QueueOrder::Count); j++) {
-      auto &queue = queues[j];
-      if (queue.getIndex().type == QueueType::PRESENT) {
+      if (queues[j].index.type == QueueType::PRESENT &&
+          !queues[j].index.index.has_value()) {
         VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(
-            device, i, Engine::getEngine().getSurface(), &presentSupport);
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface,
+                                             &presentSupport);
         if (presentSupport) {
-          queue.getIndex().index = i;
+          queues[j].index.index = i;
         }
       } else if ((queueFamily.queueFlags &
-                  static_cast<VkQueueFlags>(queue.getIndex().type)) &&
-                 !queue.getIndex().index.has_value()) {
-        queue.getIndex().index = i;
+                  static_cast<VkQueueFlags>(queues[j].index.type)) &&
+                 !queues[j].index.index.has_value()) {
+        queues[j].index.index = i;
       }
     }
 
-    bool allIndicesFound = true;
     for (uint32_t k = 0; k < static_cast<uint32_t>(QueueOrder::Count); k++) {
-      if (!queues[k].getIndex().index.has_value()) {
+      if (!queues[k].index.index.has_value()) {
         allIndicesFound = false;
         break;
       }
@@ -42,7 +45,6 @@ void findQueueFamilies(VkPhysicalDevice device,
     if (allIndicesFound) {
       break;
     }
-
     i++;
   }
 }

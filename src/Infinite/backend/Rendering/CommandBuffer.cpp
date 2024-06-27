@@ -1,6 +1,6 @@
 #include "CommandBuffer.h"
-#include "../../Infinite.h"
-#include "../Settings.h"
+#include "../../util/constants.h"
+#include <stdexcept>
 
 
 namespace Infinite {

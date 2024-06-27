@@ -1,7 +1,178 @@
 #include "BasicRenderPass.h"
+#include "../../../Infinite.h"
+#include "../../../util/constants.h"
+#include "../../Model/Models/BaseModel.h"
+#include "RenderPass.h"
 #include <array>
+#include <cstdint>
+#include <iostream>
+#include <ostream>
+#include <stdexcept>
+#include <vulkan/vulkan_core.h>
 
 namespace Infinite {
+
+// TODO: change polygonMode for the rasterizer for the drawing of outlines.
+// TODO: change depthClampEnable to VK_TRUE and enable the GPU feature to enable
+// depth clamp
+// TODO: FIX THE FREAKING FILE PATH
+
+void BasicRenderPass::preInit(VkDevice device, VkPhysicalDevice physicalDevice,
+                              VkFormat swapChainImageFormat,
+                              VkDescriptorSetLayout setLayout,
+                              VkExtent2D swapChainExtent,
+                              VmaAllocator allocator,
+                              VkSampleCountFlagBits msaaSamples,
+                              std::vector<VkImageView> swapChainImageViews) {
+  createPipeline(setLayout, device, msaaSamples);
+  createDepthAndColorImages(swapChainExtent.width, swapChainExtent.height,
+                            swapChainImageFormat, physicalDevice, allocator);
+
+  for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+    std::array<VkImageView, 3> attachments = {
+        *getColorImageReasource()->getImageView(),
+        *getDepthImageReasource()->getImageView(), swapChainImageViews[i]};
+
+    VkFramebufferCreateInfo framebufferInfo{};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = renderPass;
+    framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    framebufferInfo.pAttachments = attachments.data();
+    framebufferInfo.width = swapChainExtent.width;
+    framebufferInfo.height = swapChainExtent.height;
+    framebufferInfo.layers = 1;
+
+    if (vkCreateFramebuffer(device, &framebufferInfo, nullptr,
+                            &swapChainFramebuffers[i]) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create framebuffer!");
+    }
+  }
+}
+
+void BasicRenderPass::destroy(VkDevice device, VmaAllocator allocator) {
+  destroyDepthAndColorImages(allocator);
+
+  for (BaseModel *model : models) {
+    model->destroy(device, allocator);
+  }
+  vkDestroyPipeline(device, graphicsPipeline, nullptr);
+  vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+  vkDestroyRenderPass(device, renderPass, nullptr);
+
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    vkDestroySemaphore(device, finishedSemaphores[i], nullptr);
+    vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+    vkDestroyFence(device, inFlightFences[i], nullptr);
+  }
+}
+
+void BasicRenderPass::createDepthAndColorImages(unsigned int width,
+                                                unsigned int height,
+                                                VkFormat colorFormat,
+                                                VkPhysicalDevice physicalDevice,
+                                                VmaAllocator allocator) {
+  if (colorImageReasource == VK_NULL_HANDLE) {
+    colorImageReasource = new ColorImage;
+  }
+  colorImageReasource->create(width, height, colorFormat, physicalDevice,
+                              allocator);
+
+  if (depthImageReasource == VK_NULL_HANDLE) {
+    depthImageReasource = new DepthImage;
+  }
+  depthImageReasource->create(width, height, colorFormat, physicalDevice,
+                              allocator);
+}
+
+void BasicRenderPass::createCommandBuffers(VkCommandPool commandPool,
+                                           VkPhysicalDevice physicalDevice,
+                                           VkDevice device) {
+  commandBufferManager.create(commandPool, device);
+}
+
+VkPipelineBindPoint BasicRenderPass::getPipelineType() {
+  return VK_PIPELINE_BIND_POINT_GRAPHICS;
+}
+
+void BasicRenderPass::recreateSwapChainWork(
+    VmaAllocator allocator, VkDevice device, VkPhysicalDevice physicalDevice,
+    VkFormat swapChainImageFormat, VkExtent2D swapChainExtent,
+    std::vector<VkImageView> swapChainImageViews) {
+  destroyDepthAndColorImages(allocator);
+  createDepthAndColorImages(swapChainExtent.width, swapChainExtent.height,
+                            swapChainImageFormat, physicalDevice, allocator);
+
+  for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+    std::array<VkImageView, 3> attachments = {
+        *getColorImageReasource()->getImageView(),
+        *getDepthImageReasource()->getImageView(), swapChainImageViews[i]};
+
+    VkFramebufferCreateInfo framebufferInfo{};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = renderPass;
+    framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    framebufferInfo.pAttachments = attachments.data();
+    framebufferInfo.width = swapChainExtent.width;
+    framebufferInfo.height = swapChainExtent.height;
+    framebufferInfo.layers = 1;
+
+    if (vkCreateFramebuffer(device, &framebufferInfo, nullptr,
+                            &swapChainFramebuffers[i]) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create framebuffer!");
+    }
+  }
+}
+
+void BasicRenderPass::createSyncObjects(VkDevice device) {
+  imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+  finishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+  inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+  VkSemaphoreCreateInfo semaphoreInfo{};
+  semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+  VkFenceCreateInfo fenceInfo{};
+  fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    if (vkCreateSemaphore(device, &semaphoreInfo, nullptr,
+                          &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+        vkCreateSemaphore(device, &semaphoreInfo, nullptr,
+                          &finishedSemaphores[i]) != VK_SUCCESS ||
+        vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) !=
+            VK_SUCCESS) {
+
+      throw std::runtime_error(
+          "failed to create synchronization objects for a frame!");
+    }
+  }
+}
+
+void BasicRenderPass::destroyDepthAndColorImages(VmaAllocator allocator) {
+  depthImageReasource->destroy(allocator);
+  colorImageReasource->destroy(allocator);
+  delete depthImageReasource;
+  delete colorImageReasource;
+}
+
+ColorImage *BasicRenderPass::getColorImageReasource() const {
+  return colorImageReasource;
+}
+
+DepthImage *BasicRenderPass::getDepthImageReasource() const {
+  return depthImageReasource;
+}
+
+VkPipeline BasicRenderPass::getPipeline() { return graphicsPipeline; }
+
+VkPipelineLayout BasicRenderPass::getPipelineLayout() const {
+  return pipelineLayout;
+}
+
+VkCommandBuffer BasicRenderPass::getCommandBuffer(uint32_t index) {
+  return commandBufferManager.commandBuffers[index];
+}
 
 void BasicRenderPass::createRenderPass(VkDevice device,
                                        VkPhysicalDevice physicalDevice,
@@ -83,8 +254,8 @@ void BasicRenderPass::createRenderPass(VkDevice device,
 }
 
 void BasicRenderPass::createPipeline(VkDescriptorSetLayout setLayout,
-                                VkDevice device,
-                                VkSampleCountFlagBits msaaSamples, std::vector<VkPipelineShaderStageCreateInfo> extraShaders = {}) {
+                                     VkDevice device,
+                                     VkSampleCountFlagBits msaaSamples) {
   auto vertShaderCode = readFile(R"(../assets/shaders/vert.spv)");
   auto fragShaderCode = readFile(R"(../assets/shaders/frag.spv)");
 
@@ -231,5 +402,117 @@ void BasicRenderPass::createPipeline(VkDescriptorSetLayout setLayout,
 
   vkDestroyShaderModule(device, fragShaderModule, nullptr);
   vkDestroyShaderModule(device, vertShaderModule, nullptr);
+}
+
+void BasicRenderPass::recordCommandBuffer(VkCommandBuffer commandBuffer,
+                                          uint32_t imageIndex,
+                                          uint32_t currentFrame) {
+  VkCommandBufferBeginInfo beginInfo{};
+  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  beginInfo.flags = 0;                  // Optional
+  beginInfo.pInheritanceInfo = nullptr; // Optional
+
+  if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+    throw std::runtime_error("failed to begin recording command buffer!");
+  }
+
+  VkRenderPassBeginInfo renderPassInfo{};
+  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  renderPassInfo.renderPass = renderPass;
+  renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex]; // ToDo check
+  renderPassInfo.renderArea.offset = {0, 0};
+  renderPassInfo.renderArea.extent = swapChainExtent;
+
+  std::array<VkClearValue, 2> clearValues{};
+  clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+  clearValues[1].depthStencil = {1.0f, 0};
+
+  renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+  renderPassInfo.pClearValues = clearValues.data();
+
+  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo,
+                       VK_SUBPASS_CONTENTS_INLINE);
+
+  // Commands
+  vkCmdBindPipeline(commandBuffer, getPipelineType(), graphicsPipeline);
+
+  VkViewport viewport{};
+  viewport.x = 0.0f;
+  viewport.y = 0.0f;
+  viewport.width = static_cast<float>(swapChainExtent.width);
+  viewport.height = static_cast<float>(swapChainExtent.height);
+  viewport.minDepth = 0.0f;
+  viewport.maxDepth = 1.0f;
+  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+  VkRect2D scissor{};
+  scissor.offset = {0, 0};
+  scissor.extent = swapChainExtent;
+  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+  for (int i = 0; i < getModels().size(); i++) {
+    BufferAlloc vertexBuffers[] = {getModels()[i]->getVertexBuffer()};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffers->buffer,
+                           offsets);
+
+    vkCmdBindIndexBuffer(commandBuffer, getModels()[i]->getIndexBuffer().buffer,
+                         0, VK_INDEX_TYPE_UINT32);
+
+    vkCmdBindDescriptorSets(
+        commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, getPipelineLayout(), 0,
+        1,
+        &getModels()[i]->getDescriptorSet().getDescriptorSets()[currentFrame],
+        0, nullptr);
+
+    vkCmdDrawIndexed(commandBuffer,
+                     static_cast<uint32_t>(getModels()[i]->getIndexCount()), 1,
+                     0, 0, 0);
+  }
+  // End Commands
+
+  vkCmdEndRenderPass(commandBuffer);
+
+  if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+    throw std::runtime_error("failed to record command buffer!");
+  }
+}
+
+VkSubmitInfo BasicRenderPass::renderFrame(uint32_t currentFrame) {
+  VkSubmitInfo submitInformation;
+  vkResetCommandBuffer(commandBufferManager.commandBuffers[currentFrame], 0);
+
+  recordCommandBuffer(commandBufferManager.commandBuffers[currentFrame], index,
+                      currentFrame);
+
+  submitInformation.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+  VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
+
+  VkPipelineStageFlags waitStages[] = {
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  submitInformation.waitSemaphoreCount = 1;
+  submitInformation.pWaitSemaphores = waitSemaphores;
+  submitInformation.pWaitDstStageMask = waitStages;
+
+  submitInformation.commandBufferCount = 1;
+  submitInformation.pNext = VK_NULL_HANDLE;
+
+  const VkCommandBuffer v = commandBufferManager.commandBuffers[currentFrame];
+  submitInformation.pCommandBuffers = &v;
+
+  VkSemaphore signalSemaphores[] = {
+      finishedSemaphores[currentFrame]}; // Todo: is this necessary
+  submitInformation.signalSemaphoreCount = 1;
+  submitInformation.pSignalSemaphores = signalSemaphores;
+  return submitInformation;
+}
+
+void BasicRenderPass::waitForFences() {
+  vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE,
+                  UINT64_MAX);
+}
+void BasicRenderPass::resetFences() {
+  vkResetFences(device, 1, &inFlightFences[currentFrame]);
 }
 } // namespace Infinite

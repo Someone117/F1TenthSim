@@ -29,7 +29,7 @@ void Camera::mouse(float xpos, float ypos) {
   xAngle += xpos;
 
   // make sure that when pitch is out of bounds, screen doesn't get flipped
-  yAngle = std::clamp(yAngle + ypos, (float)-M_PI, 0.0f);
+  yAngle = glm::clamp(yAngle + ypos, (float)-M_PI, 0.0f);
 }
 
 glm::mat4 Camera::updateCameraVectors() {

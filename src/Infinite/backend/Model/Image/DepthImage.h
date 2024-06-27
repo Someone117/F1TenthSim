@@ -3,7 +3,11 @@
 
 #pragma once
 
+#include "../../Settings.h"
 #include "Image.h"
+#include <stdexcept>
+#include <vulkan/vulkan_core.h>
+
 
 namespace Infinite {
 

@@ -9,8 +9,8 @@ set(Vulkan_LIBRARY "C:/VulkanSDK/1.3.239.0/lib/vulkan-1.lib")
 # elseif(UNIX AND NOT APPLE)
 endif()
 
-#set(CMAKE_CXX_FLAGS_DEBUG "/MDd")
-#set(CMAKE_C_FLAGS_DEBUG "/NODEFAULTLIB:vulkan-1.lib")
+# set(CMAKE_CXX_FLAGS_DEBUG "/MDd")
+# set(CMAKE_C_FLAGS_DEBUG "/NODEFAULTLIB:vulkan-1.lib")
 find_package(Vulkan REQUIRED)
 
 #glfw3
@@ -20,9 +20,16 @@ find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+include_directories("libs")
+
 #all files unser src are sources
 set(SOURCE_DIR "src")
 file(GLOB_RECURSE SOURCES "${SOURCE_DIR}/*.cpp" "${SOURCE_DIR}/*.h")
+
+# set(SOURCE_DIR "libs")
+# file(GLOB_RECURSE SOURCES "${SOURCE_DIR}/*.cpp")
+
+
 
 # Combine source files and additional source directories
 list(APPEND SOURCES ${ADDITIONAL_SOURCES})

@@ -1,9 +1,11 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 #pragma once
-
-#include "../../../util/Includes.h"
+#include "../../../util/constants.h"
+#include <cstdint>
 #include <optional>
+#include <vector>
+#include <vulkan/vulkan_core.h>
 
 namespace Infinite {
 struct QueueIndex {
@@ -11,13 +13,9 @@ struct QueueIndex {
   std::optional<uint32_t> index;
 };
 class Queue {
-private:
+public:
   VkQueue queue;
   QueueIndex index;
-
-public:
-  VkQueue getQueue() const { return queue; }
-  QueueIndex getIndex() const { return index; }
 
   Queue(QueueIndex index) : index(index) {}
 
@@ -27,7 +25,8 @@ public:
   void waitIdle();
 };
 // first is graphics, second is present, third is compute
-void findQueueFamilies(VkPhysicalDevice device, Queue queues[static_cast<int>(QueueOrder::Count)]);
+void findQueueFamilies(VkPhysicalDevice device,
+                       Queue queues[static_cast<int>(QueueOrder::Count)]);
 
 } // namespace Infinite
 

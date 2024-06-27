@@ -1,7 +1,12 @@
 #include "TexturedImage.h"
 #include "../../../Infinite.h"
-#include "../../Rendering/Engine.h"
+#include "../../../backend/Settings.h"
 #include <cstring>
+#include <stdexcept>
+#ifndef STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#include "sbt_image.h"
+#endif
 
 namespace Infinite {
 
@@ -66,8 +71,7 @@ void TexturedImage::generateMipmaps(Image *image, VkFormat format, int width,
         "texture image format does not support linear blitting!");
   }
 
-  VkCommandBuffer commandBuffer =
-      Engine::getEngine().beginSingleTimeCommands(imagePool);
+  VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, imagePool);
 
   VkImageMemoryBarrier barrier{};
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -137,7 +141,9 @@ void TexturedImage::generateMipmaps(Image *image, VkFormat format, int width,
                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);
 
-  Engine::getEngine().endSingleTimeCommands(commandBuffer, imagePool);
+  endSingleTimeCommands(
+      device, commandBuffer, imagePool,
+      queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue);
 }
 
 void TexturedImage::createSampler() {

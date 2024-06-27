@@ -1,88 +1,102 @@
 #ifndef VULKAN_RENDERPASS_H
 #define VULKAN_RENDERPASS_H
 #include <cstdint>
+#include <vector>
+#include <vulkan/vulkan_core.h>
 #pragma once
 
 #include "../../Model/Image/ColorImage.h"
 #include "../../Model/Image/DepthImage.h"
+#include "../../Model/Models/BaseModel.h"
 #include "../CommandBuffer.h"
 
 namespace Infinite {
-
-class Model;
-
 class ColorImage;
-
 class DepthImage;
-
 extern std::vector<VkSemaphore> imageAvailableSemaphores;
-extern std::vector<VkSemaphore> renderFinishedSemaphores;
-extern std::vector<VkFence> inFlightFences;
 extern VkQueue presentQueue;
 
-class RenderPass {
-  friend void recordCommandBuffer(VkCommandBuffer commandBuffer,
-                                  uint32_t imageIndex, RenderPass &renderPass);
+enum RenderPassTypes {
+  BASIC_RENDER_PASS = 0,
+  COMPUTE_RENDER_PASS = 1,
+  COUNT = 2
+};
 
-  friend void renderFrame();
+class RenderPass {
 
 public:
-  void destroyDepthAndColorImages(VmaAllocator allocator);
+  virtual void waitForFences() = 0;
+  virtual void resetFences() = 0;
 
-  const std::vector<Model *> &getModels() const;
+  virtual VkSubmitInfo renderFrame(uint32_t currentFrame) = 0;
+
+  const std::vector<BaseModel *> &getModels() const;
+
+  virtual void createSyncObjects(VkDevice device) = 0;
+
+  virtual VkPipelineBindPoint getPipelineType() = 0;
+  virtual VkPipeline getPipeline() = 0;
+  virtual VkPipelineLayout getPipelineLayout() const = 0;
+
+  virtual void recreateSwapChainWork(
+      VmaAllocator allocator, VkDevice device, VkPhysicalDevice physicalDevice,
+      VkFormat swapChainImageFormat, VkExtent2D swapChainExtent,
+      std::vector<VkImageView> swapChainImageViews) = 0;
 
   virtual void createRenderPass(VkDevice device,
                                 VkPhysicalDevice physicalDevice,
                                 VkFormat swapChainImageFormat,
-                                VkSampleCountFlagBits msaaSamples);
+                                VkSampleCountFlagBits msaaSamples) = 0;
 
-  void createCommandBuffers(VkCommandPool commandPool,
-                            VkPhysicalDevice physicalDevice, VkDevice device,
-                            QueueFamilyIndices queueFamilyIndices);
-
-  static void createSyncObjects(VkDevice device, int maxFramesInFlight);
+  virtual void createCommandBuffers(VkCommandPool commandPool,
+                                    VkPhysicalDevice physicalDevice,
+                                    VkDevice device) = 0;
 
   uint32_t getIndex() const;
+  uint32_t type;
 
   void setIndex(uint32_t index);
 
-  void addModel(Model *model);
+  void addModel(BaseModel *model);
 
-  virtual void createPipeline(VkDescriptorSetLayout setLayout, VkDevice device,
-                              VkSampleCountFlagBits msaaSamples, std::vector<VkPipelineShaderStageCreateInfo> extraShaders = {});
+  virtual void createPipeline(
+      VkDescriptorSetLayout setLayout, VkDevice device,
+      VkSampleCountFlagBits msaaSamples) = 0;
 
-  void createDepthAndColorImages(unsigned int width, unsigned int height,
-                                 VkFormat colorFormat,
-                                 VkPhysicalDevice physicalDevice,
-                                 VmaAllocator allocator);
-
-  ColorImage *getColorImageReasource() const;
-
-  DepthImage *getDepthImageReasource() const;
-
-  void destroy(VkDevice device, VmaAllocator allocator, int maxFramesInFlight);
+  void destroy(VkDevice device, VmaAllocator allocator);
 
   VkRenderPass_T *getRenderPass();
 
-  VkPipeline getGraphicsPipeline() const;
-
-  VkPipelineLayout getPipelineLayout() const;
-
-  VkCommandBuffer getCommandBuffer(uint32_t index);
   uint32_t getIndex();
 
+  virtual void
+  preInit(VkDevice device, VkPhysicalDevice physicalDevice,
+          VkFormat swapChainImageFormat, VkDescriptorSetLayout setLayout,
+          VkExtent2D swapChainExtent, VmaAllocator allocator,
+          VkSampleCountFlagBits msaaSamples,
+          std::vector<VkImageView> swapChainImageViews) = 0;
+
+  std::vector<VkFence> getInFlighFences();
+  std::vector<VkSemaphore> getFinishedSemaphores();
+
+
+// make protected
+  CommandBuffer commandBufferManager;
+
 protected:
+  std::vector<VkFence> inFlightFences;
+  std::vector<VkSemaphore> finishedSemaphores;
+
   VkRenderPass renderPass;
 
   ColorImage *colorImageReasource;
   DepthImage *depthImageReasource;
 
   VkPipelineLayout pipelineLayout;
-  VkPipeline graphicsPipeline;
 
   VkCommandPool commandPool;
 
-  std::vector<Model *> models;
+  std::vector<BaseModel *> models;
 
   uint32_t index;
 
@@ -90,7 +104,6 @@ protected:
 
   friend class Image;
 
-  CommandBuffer commandBufferManager;
 };
 VkShaderModule createShaderModule(const std::vector<char> &code,
                                   VkDevice device);

@@ -5,8 +5,6 @@
 
 #include "Image.h"
 
-#include "sbt_image.h"
-#include <utility>
 
 namespace Infinite {
 

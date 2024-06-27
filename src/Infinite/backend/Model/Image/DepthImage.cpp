@@ -1,9 +1,4 @@
-
 #include "DepthImage.h"
-// #include "../../../Infinite.h"
-// #include "../../Rendering/Engine.h"
-#include "../../Settings.h"
-#include <vulkan/vulkan_core.h>
 
 namespace Infinite {
 VkFormat DepthImage::findDepthFormat(VkPhysicalDevice physicalDevice) {

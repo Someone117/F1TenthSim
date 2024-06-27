@@ -2,18 +2,17 @@
 #define VULKAN_VULKANUTILS_H
 
 #pragma once
-
-#include "Includes.h"
 #include <array>
+#include <glm/glm.hpp>
 #include <optional>
+#include <string>
+#include <vector>
+#include <vulkan/vulkan_core.h>
+
+#include "../libs/vk_mem_alloc.h"
 
 
-namespace Infinite {
-#ifdef NDEBUG
-const static bool enableValidationLayers = false;
-#else
-const static bool enableValidationLayers = true;
-#endif
+#ifndef VK_MEM_ALLOC
 
 struct BufferAlloc {
   VkBuffer buffer;
@@ -26,6 +25,14 @@ struct ImageAlloc {
 
   void destroy(VmaAllocator allocator) const;
 };
+#endif
+
+namespace Infinite {
+#ifdef NDEBUG
+const static bool enableValidationLayers = false;
+#else
+const static bool enableValidationLayers = true;
+#endif
 
 struct Vertex {
   glm::vec3 pos;
@@ -77,6 +84,16 @@ struct QueueFamilyIndices {
 bool isDeviceSuitable(VkPhysicalDevice pDevice);
 
 bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+
+VkCommandBuffer beginSingleTimeCommands(VkDevice device,
+                                        VkCommandPool commandPool);
+void endSingleTimeCommands(VkDevice device, VkCommandBuffer commandBuffer,
+                           VkCommandPool commandPool, VkQueue queue);
+
+void copyBuffer(BufferAlloc srcBuffer, BufferAlloc dstBuffer, VkDeviceSize size,
+                VkQueue queue);
+
+
 
 } // namespace Infinite
 

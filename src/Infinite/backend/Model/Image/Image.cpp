@@ -1,6 +1,7 @@
 #include "Image.h"
 #include "../../../Infinite.h"
-#include "../../Rendering/Engine.h"
+#include <cstdint>
+#include <stdexcept>
 
 namespace Infinite {
 VkImageView Image::createImageView(VkImage image, VkFormat format,
@@ -28,8 +29,7 @@ VkImageView Image::createImageView(VkImage image, VkFormat format,
 void Image::transitionImageLayout(Image *image, VkFormat format,
                                   VkImageLayout oldLayout,
                                   VkImageLayout newLayout, uint32_t mipLevels) {
-  VkCommandBuffer commandBuffer =
-      Engine::getEngine().beginSingleTimeCommands(imagePool);
+  VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, imagePool);
 
   VkImageMemoryBarrier barrier{};
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -91,13 +91,14 @@ void Image::transitionImageLayout(Image *image, VkFormat format,
   vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0,
                        nullptr, 0, nullptr, 1, &barrier);
 
-  Engine::getEngine().endSingleTimeCommands(commandBuffer, imagePool);
+  endSingleTimeCommands(
+      device, commandBuffer, imagePool,
+      queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue);
 }
 
 void Image::copyBufferToImage(BufferAlloc buffer, Image *image, uint32_t width,
                               uint32_t height) {
-  VkCommandBuffer commandBuffer =
-      Engine::getEngine().beginSingleTimeCommands(imagePool);
+  VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, imagePool);
 
   VkBufferImageCopy region{};
   region.bufferOffset = 0;
@@ -117,7 +118,9 @@ void Image::copyBufferToImage(BufferAlloc buffer, Image *image, uint32_t width,
   vkCmdCopyBufferToImage(commandBuffer, buffer.buffer, image->_image.image,
                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-  Engine::getEngine().endSingleTimeCommands(commandBuffer, imagePool);
+  endSingleTimeCommands(
+      device, commandBuffer, imagePool,
+      queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue);
 }
 
 void Image::createImage(uint32_t width, uint32_t height, uint32_t mipLevels,

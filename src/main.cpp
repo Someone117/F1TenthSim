@@ -1,41 +1,11 @@
-#ifndef STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#endif
-
-#ifndef GLFW_INCLUDE_VULKAN
-#define GLFW_INCLUDE_VULKAN
-#endif
-
-#ifndef VMA_IMPLEMENTATION
-#define VMA_IMPLEMENTATION
-#endif
-
-#ifndef GLM_FORCE_RADIANS
-#define GLM_FORCE_RADIANS
-#endif
-
-#ifndef GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#endif
-
-#ifndef GLM_ENABLE_EXPERIMENTAL
-#define GLM_ENABLE_EXPERIMENTAL
-#endif
-
-#define MAX_MODELS 1
+#include "Infinite/frontend/Camera.h"
+#include "Infinite/util/constants.h"
 
 #include "Infinite/Infinite.h"
 #include "Infinite/backend/Model/Models/Model.h"
-#include "Infinite/backend/Rendering/Engine.h"
 #include "Infinite/backend/Rendering/RenderPasses/BasicRenderPass.h"
-
-// #include
-// <BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h>
-
-/*
-Ended before:
-Compute Shaders
-*/
+#include "Infinite/backend/Rendering/RenderPasses/ComputeRenderPass.h"
+#include <iostream>
 
 using namespace Infinite;
 
@@ -48,8 +18,7 @@ void mainLoop() {
 
   bool lastCursor = false;
   bool capture_cursor = true;
-  glfwSetInputMode(Engine::getEngine().getWindow(), GLFW_CURSOR,
-                   GLFW_CURSOR_DISABLED);
+  // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
   double xpos = 0.0, ypos = 0.0;
   double currentTime;
@@ -60,11 +29,10 @@ void mainLoop() {
 
   #define SENSITIVITY 0.0001
 
-  if (glfwRawMouseMotionSupported()) // make a setting
-    glfwSetInputMode(Engine::getEngine().getWindow(), GLFW_RAW_MOUSE_MOTION,
-                     GLFW_TRUE);
+  // if (glfwRawMouseMotionSupported()) // make a setting
+  //   glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
-  while (!glfwWindowShouldClose(Engine::getEngine().getWindow())) {
+  while (!glfwWindowShouldClose(window)) {
     currentTime = glfwGetTime();
     spf = currentTime - lastTime;
     lastTime = currentTime;
@@ -78,19 +46,17 @@ void mainLoop() {
 
     glfwPollEvents();
     // do we exit
-    if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_ESCAPE)) {
-      glfwSetWindowShouldClose(Engine::getEngine().getWindow(), true);
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE)) {
+      glfwSetWindowShouldClose(window, true);
     }
     // tab out of game
-    if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_TAB)) {
+    if (glfwGetKey(window, GLFW_KEY_TAB)) {
       if (!lastCursor) {
         capture_cursor = !capture_cursor;
         if (capture_cursor) {
-          glfwSetInputMode(Engine::getEngine().getWindow(), GLFW_CURSOR,
-                           GLFW_CURSOR_DISABLED);
+          glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         } else {
-          glfwSetInputMode(Engine::getEngine().getWindow(), GLFW_CURSOR,
-                           GLFW_CURSOR_NORMAL);
+          glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
       }
       lastCursor = true;
@@ -99,41 +65,37 @@ void mainLoop() {
     }
     // if not tabbed out, get the cursor and reset pos, else don't move mouse
     if (capture_cursor) {
-      glfwGetCursorPos(Engine::getEngine().getWindow(), &xpos, &ypos);
-      glfwSetCursorPos(Engine::getEngine().getWindow(),
-                       Engine::getEngine().getWindowWidth() / 2.0,
-                       Engine::getEngine().getWindowHeight() / 2.0);
+      glfwGetCursorPos(window, &xpos, &ypos);
+      glfwSetCursorPos(window, swapChainExtent.width / 2.0,
+                       swapChainExtent.height / 2.0);
       // looking
-      camera.mouse(
-          (std::floor(xpos - Engine::getEngine().getWindowWidth() / 2.0f) *
-           spf) *
-              SENSITIVITY,
-          (std::floor((ypos - Engine::getEngine().getWindowHeight() / 2.0f)) *
-           spf) *
-              SENSITIVITY);
+      camera.mouse((std::floor(xpos - swapChainExtent.width / 2.0f) * spf) *
+                       SENSITIVITY,
+                   (std::floor((ypos - swapChainExtent.height / 2.0f)) * spf) *
+                       SENSITIVITY);
 
       // movement
-      if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_W)) {
+      if (glfwGetKey(window, GLFW_KEY_W)) {
         camera.move(spf, FORWARD);
       }
-      if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_S)) {
+      if (glfwGetKey(window, GLFW_KEY_S)) {
         camera.move(spf, BACKWARD);
       }
-      if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_A)) {
+      if (glfwGetKey(window, GLFW_KEY_A)) {
         camera.move(spf, LEFT);
       }
-      if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_D)) {
+      if (glfwGetKey(window, GLFW_KEY_D)) {
         camera.move(spf, RIGHT);
       }
-      if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_SPACE)) {
+      if (glfwGetKey(window, GLFW_KEY_SPACE)) {
         camera.move(spf, UP);
       }
-      if (glfwGetKey(Engine::getEngine().getWindow(), GLFW_KEY_LEFT_SHIFT)) {
+      if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)) {
         camera.move(spf, DOWN);
       }
     } else {
-      xpos = Engine::getEngine().getWindowWidth() / 2.0;
-      ypos = Engine::getEngine().getWindowHeight() / 2.0;
+      xpos = swapChainExtent.width / 2.0;
+      ypos = swapChainExtent.height / 2.0;
     }
     renderFrame();
   }
@@ -146,17 +108,22 @@ int main() {
   //    texHeight)))) + 1;
   App vulkanTest("Vulkan Test", 0, 1, 0);
 
+  ComputeRenderPass computePass{};
+
+  addRenderPass(&computePass);
+
   BasicRenderPass mainPass{};
 
   addRenderPass(&mainPass);
 
-  Engine::getEngine().setApp(vulkanTest);
+  initInfinite(vulkanTest);
 
-  initInfinite();
 
   Model mainModel = createModel("main", MODEL_PATH, TEXTURE_PATH);
 
   mainPass.addModel(&mainModel);
+
+  camera = Camera(glm::vec3(0.0f, 0.0f, 3.0f));
 
   cameras.push_back(&camera);
 

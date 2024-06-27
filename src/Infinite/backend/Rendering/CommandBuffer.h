@@ -3,11 +3,10 @@
 
 #pragma once
 
-#include "../../util/Includes.h"
+#include <vector>
+#include <vulkan/vulkan.h>
 
 namespace Infinite {
-class RenderPass;
-
 struct CommandBuffer {
   std::vector<VkCommandBuffer> commandBuffers;
 
