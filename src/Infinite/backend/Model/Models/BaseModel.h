@@ -38,6 +38,8 @@ public:
   virtual DescriptorSet getDescriptorSet() const = 0;
   virtual uint32_t getIndexCount() const = 0;
 
+  void setScale(glm::vec3 newScale);
+
   const glm::vec3 &getPosition() const;
 
   const glm::vec3 &getScale() const;

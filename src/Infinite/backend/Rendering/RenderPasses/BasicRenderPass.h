@@ -1,6 +1,7 @@
 #ifndef VULKAN_BASICRENDERPASS_H
 #define VULKAN_BASICRENDERPASS_H
 
+#include <cstdint>
 #include <vulkan/vulkan_core.h>
 #pragma once
 
@@ -21,7 +22,7 @@ public:
   void resetFences() override;
 
   void preInit(VkDevice device, VkPhysicalDevice physicalDevice,
-               VkFormat swapChainImageFormat, VkDescriptorSetLayout setLayout,
+               VkFormat swapChainImageFormat,
                VkExtent2D swapChainExtent, VmaAllocator allocator,
                VkSampleCountFlagBits msaaSamples,
                std::vector<VkImageView> swapChainImageViews) override;
@@ -31,7 +32,7 @@ public:
   void createRenderPass(VkDevice device, VkPhysicalDevice physicalDevice,
                         VkFormat swapChainImageFormat,
                         VkSampleCountFlagBits msaaSamples) override;
-  void createPipeline(VkDescriptorSetLayout setLayout, VkDevice device,
+  void createPipeline(VkDevice device,
                       VkSampleCountFlagBits msaaSamples) override;
 
   void createDepthAndColorImages(unsigned int width, unsigned int height,
@@ -43,7 +44,7 @@ public:
                             VkPhysicalDevice physicalDevice,
                             VkDevice device) override;
 
-  void createSyncObjects(VkDevice device);
+  void createSyncObjects(VkDevice device) override;
 
   void recreateSwapChainWork(
       VmaAllocator allocator, VkDevice device, VkPhysicalDevice physicalDevice,
@@ -61,7 +62,7 @@ public:
   VkPipelineLayout getPipelineLayout() const override;
   VkCommandBuffer getCommandBuffer(uint32_t index);
   VkPipelineBindPoint getPipelineType() override;
-  VkSubmitInfo renderFrame(uint32_t currentFrame) override;
+  VkSubmitInfo renderFrame(uint32_t currentFrame, uint32_t imageIndex) override;
 };
 
 } // namespace Infinite

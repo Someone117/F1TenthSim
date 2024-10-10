@@ -5,11 +5,15 @@
 #include "Infinite/backend/Model/Models/Model.h"
 #include "Infinite/backend/Rendering/RenderPasses/BasicRenderPass.h"
 #include "Infinite/backend/Rendering/RenderPasses/ComputeRenderPass.h"
+#include <GLFW/glfw3.h>
+#include <glm/fwd.hpp>
 #include <iostream>
 
 using namespace Infinite;
 
 const char *const MODEL_PATH = R"(../assets/viking_room.obj)";
+const char *const MODEL_PATH2 = R"(../assets/untitled.obj)";
+
 const char *const TEXTURE_PATH = R"(../assets/viking_room.png)";
 
 Camera camera;
@@ -27,11 +31,12 @@ void mainLoop() {
   int f = 0;
   double frameTimes = 0;
 
-  #define SENSITIVITY 0.0001
+  #define SENSITIVITY 0.1f
 
-  // if (glfwRawMouseMotionSupported()) // make a setting
-  //   glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-
+  if (glfwRawMouseMotionSupported()){ // make a setting 
+    glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    std::cout << "Raw input supported, using it" << std::endl;
+  }
   while (!glfwWindowShouldClose(window)) {
     currentTime = glfwGetTime();
     spf = currentTime - lastTime;
@@ -52,6 +57,7 @@ void mainLoop() {
     // tab out of game
     if (glfwGetKey(window, GLFW_KEY_TAB)) {
       if (!lastCursor) {
+        std::cout << "tab" << std::endl;
         capture_cursor = !capture_cursor;
         if (capture_cursor) {
           glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -80,6 +86,7 @@ void mainLoop() {
       }
       if (glfwGetKey(window, GLFW_KEY_S)) {
         camera.move(spf, BACKWARD);
+        
       }
       if (glfwGetKey(window, GLFW_KEY_A)) {
         camera.move(spf, LEFT);
@@ -123,8 +130,8 @@ int main() {
 
   mainPass.addModel(&mainModel);
 
-  camera = Camera(glm::vec3(0.0f, 0.0f, 3.0f));
-
+  camera = Camera(glm::vec3(0, 0, -0.5));
+  camera.setAngles(-27.2313, -1.3192);
   cameras.push_back(&camera);
 
   try {

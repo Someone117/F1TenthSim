@@ -13,25 +13,10 @@
 #include <sys/types.h>
 #include <vector>
 #include <vulkan/vulkan_core.h>
+#include "../../Software/ShaderAnalyzer.h"
 namespace Infinite {
 
 #define PARTICLE_COUNT 128
-
-VkPipelineShaderStageCreateInfo ComputeRenderPass::createExtraShaderModule(
-    VkDevice device, VkShaderModule &computeShaderModule) {
-  auto computeShaderCode = readFile(R"(../assets/shaders/comp.spv)");
-
-  computeShaderModule = createShaderModule(computeShaderCode, device);
-
-  VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
-  computeShaderStageInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-  computeShaderStageInfo.module = computeShaderModule;
-  computeShaderStageInfo.pName = "main";
-
-  return computeShaderStageInfo;
-}
 
 void ComputeRenderPass::createShaderStorageBuffers(uint32_t WIDTH,
                                                    uint32_t HEIGHT,
@@ -110,25 +95,39 @@ void ComputeRenderPass::createDescriptorSets() {
                                      {});
 }
 
-void ComputeRenderPass::createPipeline(VkDescriptorSetLayout setLayout,
-                                       VkDevice device,
+void ComputeRenderPass::createPipeline(VkDevice device,
                                        VkSampleCountFlagBits msaaSamplesrs) {
+
+  auto computeShaderCode = readFile(R"(../assets/shaders/comp.spv)");
+
+  auto computeShaderModule = createShaderModule(computeShaderCode, device);
+
+  ShaderLayout layout = {};
+  generateShaderLayout(layout, {computeShaderModule}, {computeShaderCode});
+  VkDescriptorSetLayout descriptorSetLayout  = DescriptorSet::createDescriptorSetLayout(device, layout.highLevelLayout);
+
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = 1;
-  pipelineLayoutInfo.pSetLayouts = &setLayout; // is this right??
+  pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
   if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr,
                              &computePipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create compute pipeline layout!");
   }
 
-  VkShaderModule computeShaderModule;
   VkComputePipelineCreateInfo pipelineInfo{};
   pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
   pipelineInfo.layout = computePipelineLayout;
-  pipelineInfo.stage = createExtraShaderModule(device, computeShaderModule);
+  pipelineInfo.stage = layout.shaderStages[0];
+
+  VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
+  computeShaderStageInfo.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+  computeShaderStageInfo.module = computeShaderModule;
+  computeShaderStageInfo.pName = "main";
 
   if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
                                nullptr, &computePipeline) != VK_SUCCESS) {
@@ -169,7 +168,8 @@ void ComputeRenderPass ::resetFences() {
   vkResetFences(device, 1, &inFlightFences[currentFrame]);
 }
 
-VkSubmitInfo ComputeRenderPass::renderFrame(uint32_t currentFrame) {
+VkSubmitInfo ComputeRenderPass::renderFrame(uint32_t currentFrame,
+                                            uint32_t imageIndex) {
   VkSubmitInfo submitInfo{};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -286,13 +286,14 @@ void ComputeRenderPass::createRenderPass(VkDevice device,
   }
 }
 
-void ComputeRenderPass::preInit(
-    VkDevice device, VkPhysicalDevice physicalDevice,
-    VkFormat swapChainImageFormat, VkDescriptorSetLayout setLayout,
-    VkExtent2D swapChainExtent, VmaAllocator allocator,
-    VkSampleCountFlagBits msaaSamples,
-    std::vector<VkImageView> swapChainImageViews) {
-  createPipeline(setLayout, device, msaaSamples);
+void ComputeRenderPass::preInit(VkDevice device,
+                                VkPhysicalDevice physicalDevice,
+                                VkFormat swapChainImageFormat,
+                                VkExtent2D swapChainExtent,
+                                VmaAllocator allocator,
+                                VkSampleCountFlagBits msaaSamples,
+                                std::vector<VkImageView> swapChainImageViews) {
+  createPipeline(device, msaaSamples);
   createShaderStorageBuffers(swapChainExtent.width, swapChainExtent.height,
                              allocator);
   createDescriptorSets();

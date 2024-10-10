@@ -29,11 +29,13 @@ void main()
     particlesOut[index].position = particleIn.position + particleIn.velocity.xy * ubo.deltaTime;
     particlesOut[index].velocity = particleIn.velocity;
 
+    float near = 0.5;
+
     // Flip movement at window border
-    if ((particlesOut[index].position.x <= -1.0) || (particlesOut[index].position.x >= 1.0)) {
+    if ((particlesOut[index].position.x <= -near) || (particlesOut[index].position.x >= near)) {
         particlesOut[index].velocity.x = -particlesOut[index].velocity.x;
     }
-    if ((particlesOut[index].position.y <= -1.0) || (particlesOut[index].position.y >= 1.0)) {
+    if ((particlesOut[index].position.y <= -near) || (particlesOut[index].position.y >= near)) {
         particlesOut[index].velocity.y = -particlesOut[index].velocity.y;
     }
 

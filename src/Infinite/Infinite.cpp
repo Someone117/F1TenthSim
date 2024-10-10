@@ -179,6 +179,7 @@ void initInfinite(App app) {
   }
 
   std::vector<DescriptorSetLayout> layout = {
+      // vertex and frag
       {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT},
       {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
        VK_SHADER_STAGE_FRAGMENT_BIT}};
@@ -192,16 +193,13 @@ void initInfinite(App app) {
   for (const auto &r : renderPasses) {
 
     if (r->getPipelineType() == VK_PIPELINE_BIND_POINT_COMPUTE) {
-      r->preInit(
-          device, physicalDevice, swapChainImageFormat,
-          DescriptorSet::createDescriptorSetLayout(device, computeLayout),
-          swapChainExtent, allocator, msaaSamples, swapChainImageViews);
+      r->preInit(device, physicalDevice, swapChainImageFormat, swapChainExtent,
+                 allocator, msaaSamples, swapChainImageViews);
     } else {
       swapChainFramebuffers.resize(swapChainImageViews.size());
 
-      r->preInit(device, physicalDevice, swapChainImageFormat,
-                 DescriptorSet::createDescriptorSetLayout(device, layout),
-                 swapChainExtent, allocator, msaaSamples, swapChainImageViews);
+      r->preInit(device, physicalDevice, swapChainImageFormat, swapChainExtent,
+                 allocator, msaaSamples, swapChainImageViews);
     }
   }
 
@@ -366,7 +364,8 @@ void renderFrame() {
 
   renderPasses[0]->resetFences();
 
-  VkSubmitInfo submitInformation = renderPasses[0]->renderFrame(currentFrame);
+  VkSubmitInfo submitInformation =
+      renderPasses[0]->renderFrame(currentFrame, -1); // last # is a placeholder
 
   // err
   if (vkQueueSubmit(queues[static_cast<uint32_t>(QueueOrder::COMPUTE)].queue, 1,
@@ -388,29 +387,33 @@ void renderFrame() {
 
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
     needToRecreateSwapChain = true;
+  } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+    throw std::runtime_error("failed to acquire swap chain image!");
   }
 
   renderPasses[1]->resetFences();
 
-
+  renderPasses[1]->renderFrame(
+      currentFrame, imageIndex); // just record command buffers for now
   // hack untill it works
   submitInformation = {};
   submitInformation.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-  VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
+  VkSemaphore waitSemaphores[] = {
+      renderPasses[0]->getFinishedSemaphores()[currentFrame],
+      imageAvailableSemaphores[currentFrame]};
 
   VkPipelineStageFlags waitStages[] = {
+      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  submitInformation.waitSemaphoreCount = 1;
+  submitInformation.waitSemaphoreCount = 2;
   submitInformation.pWaitSemaphores = waitSemaphores;
   submitInformation.pWaitDstStageMask = waitStages;
-  std::cout << "A" << std::endl;
 
   submitInformation.commandBufferCount = 1;
 
-  const VkCommandBuffer v =
-      renderPasses[1]->commandBufferManager.commandBuffers[currentFrame];
-  submitInformation.pCommandBuffers = &v;
+  submitInformation.pCommandBuffers =
+      &renderPasses[1]->commandBufferManager.commandBuffers[currentFrame];
 
   VkSemaphore signalSemaphores[] = {
       renderPasses[1]
@@ -419,22 +422,18 @@ void renderFrame() {
   submitInformation.signalSemaphoreCount = 1;
   submitInformation.pSignalSemaphores = signalSemaphores;
 
-  // crashes here
-  vkQueueSubmit(queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue, 1,
-                &submitInformation,
-                renderPasses[1]->getInFlighFences()[currentFrame]);
-
-  // if (vkQueueSubmit(queueshit, 1, submitInformation.data(), fence) !=
-  //     VK_SUCCESS) {
-  //   throw std::runtime_error("failed to submit draw command buffer!");
-  // }
+  if (vkQueueSubmit(queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue,
+                    1, &submitInformation,
+                    renderPasses[1]->getInFlighFences()[currentFrame]) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to submit draw command buffer!");
+  }
 
   VkPresentInfoKHR presentInfo{};
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
   presentInfo.waitSemaphoreCount = 1;
-  presentInfo.pWaitSemaphores =
-      &renderPasses[1]->getFinishedSemaphores()[currentFrame];
+  presentInfo.pWaitSemaphores = signalSemaphores;
 
   VkSwapchainKHR swapChains[] = {swapChain};
   presentInfo.swapchainCount = 1;
@@ -442,7 +441,8 @@ void renderFrame() {
 
   presentInfo.pImageIndices = &imageIndex;
 
-  result = vkQueuePresentKHR(presentQueue, &presentInfo);
+  result = vkQueuePresentKHR(
+      queues[static_cast<uint32_t>(QueueOrder::PRESENT)].queue, &presentInfo);
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
       framebufferResized) {
     framebufferResized = false;
@@ -456,12 +456,11 @@ void renderFrame() {
   if (needToRecreateSwapChain) {
     recreateSwapChain();
   }
-
 }
 
 void waitForNextFrame() { vkDeviceWaitIdle(device); }
 
-// todo: check
+// todo: check a LOT
 void cleanUp() {
   for (const auto &r : renderPasses) {
     r->destroy(device, allocator);
@@ -557,9 +556,9 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
               VkDebugUtilsMessageTypeFlagsEXT messageType,
               const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
               void *pUserData) {
-  if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-  }
+  // if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+  std::cout << "validation layer: " << pCallbackData->pMessage << std::endl;
+  // }
   return VK_FALSE;
 }
 

@@ -5,7 +5,6 @@
 
 namespace Infinite {
 std::vector<VkSemaphore> imageAvailableSemaphores = {};
-VkQueue presentQueue;
 
 // TODO: change polygonMode for the rasterizer for the drawing of outlines.
 // TODO: change depthClampEnable to VK_TRUE and enable the GPU feature to enable

@@ -16,6 +16,12 @@ class DepthImage;
 extern std::vector<VkSemaphore> imageAvailableSemaphores;
 extern VkQueue presentQueue;
 
+struct DescriptorSetLayoutData {
+  uint32_t set_number;
+  VkDescriptorSetLayoutCreateInfo create_info;
+  std::vector<VkDescriptorSetLayoutBinding> bindings;
+};
+
 enum RenderPassTypes {
   BASIC_RENDER_PASS = 0,
   COMPUTE_RENDER_PASS = 1,
@@ -28,7 +34,7 @@ public:
   virtual void waitForFences() = 0;
   virtual void resetFences() = 0;
 
-  virtual VkSubmitInfo renderFrame(uint32_t currentFrame) = 0;
+  virtual VkSubmitInfo renderFrame(uint32_t currentFrame, uint32_t imageIndex) = 0;
 
   const std::vector<BaseModel *> &getModels() const;
 
@@ -59,8 +65,7 @@ public:
 
   void addModel(BaseModel *model);
 
-  virtual void createPipeline(
-      VkDescriptorSetLayout setLayout, VkDevice device,
+  virtual void createPipeline(VkDevice device,
       VkSampleCountFlagBits msaaSamples) = 0;
 
   void destroy(VkDevice device, VmaAllocator allocator);
@@ -71,7 +76,7 @@ public:
 
   virtual void
   preInit(VkDevice device, VkPhysicalDevice physicalDevice,
-          VkFormat swapChainImageFormat, VkDescriptorSetLayout setLayout,
+          VkFormat swapChainImageFormat,
           VkExtent2D swapChainExtent, VmaAllocator allocator,
           VkSampleCountFlagBits msaaSamples,
           std::vector<VkImageView> swapChainImageViews) = 0;

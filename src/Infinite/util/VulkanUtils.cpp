@@ -46,7 +46,7 @@ std::vector<char> readFile(const std::string &filename) {
   if (!file.is_open()) {
     throw std::runtime_error("failed to open file: " + filename);
   }
-
+  
   size_t fileSize = (size_t)file.tellg();
   std::vector<char> buffer(fileSize);
 
@@ -81,6 +81,7 @@ VkVertexInputBindingDescription Vertex::getBindingDescription() {
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(Vertex);
+
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
   return bindingDescription;

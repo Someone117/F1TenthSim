@@ -27,20 +27,15 @@ private:
   void recordComputeCommandBuffer(VkCommandBuffer commandBuffer);
 
 public:
-  VkPipelineShaderStageCreateInfo
-  createExtraShaderModule(VkDevice device, VkShaderModule &computeShaderModule);
-  // on Compute space
-  // https://vulkan-tutorial.com/Compute_Shader
-
   void createShaderStorageBuffers(uint32_t WIDTH, uint32_t HEIGHT,
                                   VmaAllocator allocator);
 
   void createDescriptorSets();
 
-  void createPipeline(VkDescriptorSetLayout setLayout, VkDevice device,
+  void createPipeline(VkDevice device,
                       VkSampleCountFlagBits msaaSamples) override;
 
-  VkSubmitInfo renderFrame(uint32_t currentFrame) override;
+  VkSubmitInfo renderFrame(uint32_t currentFrame, uint32_t imageIndex) override;
 
   void waitForFences() override;
   void resetFences() override;
@@ -65,7 +60,7 @@ public:
 
   void preInit(
       VkDevice device, VkPhysicalDevice physicalDevice,
-      VkFormat swapChainImageFormat, VkDescriptorSetLayout setLayout,
+      VkFormat swapChainImageFormat,
       VkExtent2D swapChainExtent, VmaAllocator allocator,
       VkSampleCountFlagBits msaaSamples,
       std::vector<VkImageView> swapChainImageViews) override;

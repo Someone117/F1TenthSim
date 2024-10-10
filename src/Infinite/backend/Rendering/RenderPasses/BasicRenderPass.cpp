@@ -2,12 +2,17 @@
 #include "../../../Infinite.h"
 #include "../../../util/constants.h"
 #include "../../Model/Models/BaseModel.h"
+#include "../../Software/ShaderAnalyzer.h"
 #include "RenderPass.h"
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
+#include <optional>
 #include <ostream>
 #include <stdexcept>
+#include <sys/types.h>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 
 namespace Infinite {
@@ -19,12 +24,12 @@ namespace Infinite {
 
 void BasicRenderPass::preInit(VkDevice device, VkPhysicalDevice physicalDevice,
                               VkFormat swapChainImageFormat,
-                              VkDescriptorSetLayout setLayout,
                               VkExtent2D swapChainExtent,
                               VmaAllocator allocator,
                               VkSampleCountFlagBits msaaSamples,
                               std::vector<VkImageView> swapChainImageViews) {
-  createPipeline(setLayout, device, msaaSamples);
+
+  createPipeline(device, msaaSamples);
   createDepthAndColorImages(swapChainExtent.width, swapChainExtent.height,
                             swapChainImageFormat, physicalDevice, allocator);
 
@@ -253,8 +258,7 @@ void BasicRenderPass::createRenderPass(VkDevice device,
   }
 }
 
-void BasicRenderPass::createPipeline(VkDescriptorSetLayout setLayout,
-                                     VkDevice device,
+void BasicRenderPass::createPipeline(VkDevice device,
                                      VkSampleCountFlagBits msaaSamples) {
   auto vertShaderCode = readFile(R"(../assets/shaders/vert.spv)");
   auto fragShaderCode = readFile(R"(../assets/shaders/frag.spv)");
@@ -262,35 +266,16 @@ void BasicRenderPass::createPipeline(VkDescriptorSetLayout setLayout,
   VkShaderModule vertShaderModule = createShaderModule(vertShaderCode, device);
   VkShaderModule fragShaderModule = createShaderModule(fragShaderCode, device);
 
-  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-  vertShaderStageInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertShaderStageInfo.module = vertShaderModule;
-  vertShaderStageInfo.pName = "main";
+  std::array<VkVertexInputAttributeDescription, 2> attributes = Vertex::getAttributeDescriptions();
+  std::vector<VkVertexInputBindingDescription> bindings = {Vertex::getBindingDescription()};
 
-  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-  fragShaderStageInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragShaderStageInfo.module = fragShaderModule;
-  fragShaderStageInfo.pName = "main";
+  ShaderLayout layout = {};
+  generateShaderLayout(layout, {vertShaderModule, fragShaderModule},
+                       {vertShaderCode, fragShaderCode});
 
-  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,
-                                                    fragShaderStageInfo};
+  VkDescriptorSetLayout descriptorSetLayout =
+      DescriptorSet::createDescriptorSetLayout(device, layout.highLevelLayout);
 
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  auto bindingDescription = Vertex::getBindingDescription();
-  auto attributeDescriptions = Vertex::getAttributeDescriptions();
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
   VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
   inputAssembly.sType =
@@ -357,7 +342,7 @@ void BasicRenderPass::createPipeline(VkDescriptorSetLayout setLayout,
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = 1;
-  pipelineLayoutInfo.pSetLayouts = &setLayout;
+  pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
   if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr,
                              &pipelineLayout) != VK_SUCCESS) {
@@ -380,8 +365,16 @@ void BasicRenderPass::createPipeline(VkDescriptorSetLayout setLayout,
   VkGraphicsPipelineCreateInfo pipelineInfo{};
   pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipelineInfo.stageCount = 2;
-  pipelineInfo.pStages = shaderStages;
-  pipelineInfo.pVertexInputState = &vertexInputInfo;
+  pipelineInfo.pStages = layout.shaderStages.data();
+
+
+  VkPipelineVertexInputStateCreateInfo infoV{};
+  infoV.pVertexAttributeDescriptions = attributes.data();
+  infoV.pVertexBindingDescriptions = bindings.data();
+  infoV.vertexBindingDescriptionCount = bindings.size();
+  infoV.vertexAttributeDescriptionCount = attributes.size();
+
+  pipelineInfo.pVertexInputState = &infoV;
   pipelineInfo.pInputAssemblyState = &inputAssembly;
   pipelineInfo.pViewportState = &viewportState;
   pipelineInfo.pRasterizationState = &rasterizer;
@@ -478,33 +471,35 @@ void BasicRenderPass::recordCommandBuffer(VkCommandBuffer commandBuffer,
   }
 }
 
-VkSubmitInfo BasicRenderPass::renderFrame(uint32_t currentFrame) {
+VkSubmitInfo BasicRenderPass::renderFrame(uint32_t currentFrame,
+                                          uint32_t imageIndex) {
   VkSubmitInfo submitInformation;
   vkResetCommandBuffer(commandBufferManager.commandBuffers[currentFrame], 0);
 
-  recordCommandBuffer(commandBufferManager.commandBuffers[currentFrame], index,
-                      currentFrame);
+  recordCommandBuffer(commandBufferManager.commandBuffers[currentFrame],
+                      imageIndex, currentFrame);
 
-  submitInformation.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  // submitInformation.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-  VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
+  // VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
 
-  VkPipelineStageFlags waitStages[] = {
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  submitInformation.waitSemaphoreCount = 1;
-  submitInformation.pWaitSemaphores = waitSemaphores;
-  submitInformation.pWaitDstStageMask = waitStages;
+  // VkPipelineStageFlags waitStages[] = {
+  //     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  // submitInformation.waitSemaphoreCount = 1;
+  // submitInformation.pWaitSemaphores = waitSemaphores;
+  // submitInformation.pWaitDstStageMask = waitStages;
 
-  submitInformation.commandBufferCount = 1;
-  submitInformation.pNext = VK_NULL_HANDLE;
+  // submitInformation.commandBufferCount = 1;
+  // submitInformation.pNext = VK_NULL_HANDLE;
 
-  const VkCommandBuffer v = commandBufferManager.commandBuffers[currentFrame];
-  submitInformation.pCommandBuffers = &v;
+  // const VkCommandBuffer v =
+  // commandBufferManager.commandBuffers[currentFrame];
+  // submitInformation.pCommandBuffers = &v;
 
-  VkSemaphore signalSemaphores[] = {
-      finishedSemaphores[currentFrame]}; // Todo: is this necessary
-  submitInformation.signalSemaphoreCount = 1;
-  submitInformation.pSignalSemaphores = signalSemaphores;
+  // VkSemaphore signalSemaphores[] = {
+  //     finishedSemaphores[currentFrame]}; // Todo: is this necessary
+  // submitInformation.signalSemaphoreCount = 1;
+  // submitInformation.pSignalSemaphores = signalSemaphores;
   return submitInformation;
 }
 

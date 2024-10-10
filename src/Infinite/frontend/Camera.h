@@ -1,6 +1,7 @@
 #ifndef VULKAN_CAMERA_H
 #define VULKAN_CAMERA_H
 
+#include <glm/fwd.hpp>
 #include <vector>
 #pragma once
 
@@ -41,6 +42,14 @@ public:
 
   bool getIsOrthographic() const;
   void setIsOrthographic(bool isOrthographic_);
+  glm::vec3 getPosition() { return position; }
+  glm::vec3 getUp() { return Up; }
+  glm::vec2 getAngles() { return glm::vec2(xAngle, yAngle); }
+  void setUp(glm::vec3 up) { Up = up; }
+  void setAngles(float xAngle_, float yAngle_) { 
+    xAngle = xAngle_;
+    yAngle = yAngle_;
+  };
 
 private:
   // camera Attributes

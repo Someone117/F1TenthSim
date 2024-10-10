@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstring>
 #include <glm/ext/matrix_clip_space.hpp>
+#include <glm/fwd.hpp>
 #include <glm/gtx/hash.hpp>
 #include <iostream>
 #include <ostream>
@@ -27,6 +28,11 @@ BaseModel::createUniformBuffer(VkDeviceSize bufferSize) {
   }
   return uniformBuffers;
 }
+
+void BaseModel::setScale(glm::vec3 newScale) {
+  scale = newScale;
+}
+
 
 BufferAlloc BaseModel::getUniformBuffer(uint32_t currentImage) {
   return uniformBuffers[currentImage];
@@ -52,7 +58,7 @@ void BaseModel::updateUniformBuffer(uint32_t index, Camera camera,
     ubo.proj = glm::ortho(0.0f, (float)width, 0.0f, (float)height, 0.1f, 10.0f);
   } else {
     ubo.proj = glm::perspective(glm::radians(110.0f), width / (float)height,
-                                0.1f, 10.0f);
+                                0.01f, 10.0f);
   }
   ubo.view = camera.getViewMatrix();
   ubo.proj[1][1] *= -1;
