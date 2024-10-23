@@ -11,7 +11,6 @@
 
 #include "../libs/vk_mem_alloc.h"
 
-
 #ifndef VK_MEM_ALLOC
 
 struct BufferAlloc {
@@ -34,6 +33,44 @@ const static bool enableValidationLayers = false;
 const static bool enableValidationLayers = true;
 #endif
 
+struct Particle {
+  glm::vec2 position;
+  glm::vec2 velocity;
+  glm::vec4 color;
+
+  // TODO: make not inline
+
+  static inline VkVertexInputBindingDescription getBindingDescription() {
+    VkVertexInputBindingDescription bindingDescription{};
+    bindingDescription.binding = 0;
+    bindingDescription.stride = sizeof(Particle);
+    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    return bindingDescription;
+  }
+
+  static inline std::vector<VkVertexInputAttributeDescription>
+  getAttributeDescriptions() {
+    std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
+
+    attributeDescriptions[0].binding = 0;
+    attributeDescriptions[0].location = 0;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[0].offset = offsetof(Particle, position);
+
+    attributeDescriptions[1].binding = 0;
+    attributeDescriptions[1].location = 1;
+    attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    attributeDescriptions[1].offset = offsetof(Particle, color);
+
+    return attributeDescriptions;
+  }
+};
+
+struct ComputeUniformBufferObject {
+  float deltaTime = 1.0f;
+};
+
 struct Vertex {
   glm::vec3 pos;
   glm::vec2 texCoord;
@@ -43,7 +80,7 @@ struct Vertex {
 
   static VkVertexInputBindingDescription getBindingDescription();
 
-  static std::array<VkVertexInputAttributeDescription, 2>
+  static std::vector<VkVertexInputAttributeDescription>
   getAttributeDescriptions();
 
   bool operator==(const Vertex &other) const {
@@ -66,7 +103,7 @@ struct SwapChainSupportDetails {
 void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
                   BufferAlloc &bufferAllocator,
                   VkMemoryPropertyFlags memFlags = 0,
-                  VmaAllocationCreateFlags vmaFlags = 0);
+                  VmaAllocationCreateFlags vmaFlags = 0, std::string name = "");
 
 bool hasStencilComponent(VkFormat format);
 
@@ -92,8 +129,6 @@ void endSingleTimeCommands(VkDevice device, VkCommandBuffer commandBuffer,
 
 void copyBuffer(BufferAlloc srcBuffer, BufferAlloc dstBuffer, VkDeviceSize size,
                 VkQueue queue);
-
-
 
 } // namespace Infinite
 

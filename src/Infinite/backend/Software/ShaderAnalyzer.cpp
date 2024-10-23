@@ -12,10 +12,9 @@
 
 namespace Infinite {
 
-void
-generateShaderLayout(ShaderLayout &layout,
-                     const std::vector<VkShaderModule> &shaderModules,
-                     const std::vector<std::vector<char>> &shaderCodes) {
+void generateShaderLayout(ShaderLayout &layout,
+                          const std::vector<VkShaderModule> &shaderModules,
+                          const std::vector<std::vector<char>> &shaderCodes) {
   if (shaderModules.size() != shaderCodes.size()) {
     throw std::runtime_error(
         "Number of shader modules does not equal the number of shader codes!");
@@ -51,14 +50,13 @@ generateShaderLayout(ShaderLayout &layout,
       shaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
       break;
     default:
-      std::cout << execution_model << std::endl;
-      throw std::runtime_error("Unused shader type");
+      std::cerr << "Found: " << execution_model
+                << " shader type, please implement this" << std::endl;
     }
 
     layout.shaderStages.push_back(shaderStageInfo);
 
     for (auto &u : res.uniform_buffers) {
-      uint32_t location = comp.get_decoration(u.id, spv::DecorationLocation);
       layout.highLevelLayout.push_back(
           {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, shaderStageInfo.stage});
     }
@@ -75,14 +73,24 @@ generateShaderLayout(ShaderLayout &layout,
       layout.highLevelLayout.push_back(
           {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, shaderStageInfo.stage});
     }
+
+    for(auto u : res.storage_images) {
+      uint32_t binding = comp.get_decoration(u.id, spv::DecorationBinding);
+      layout.highLevelLayout.push_back(
+          {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+           shaderStageInfo.stage});
+    }
   }
 }
 
-void createVCI(VkPipelineVertexInputStateCreateInfo& v, std::vector<VkVertexInputAttributeDescription> * off, VkVertexInputBindingDescription binding) {
+void createVCI(VkPipelineVertexInputStateCreateInfo &v,
+               std::vector<VkVertexInputAttributeDescription> *off,
+               std::vector<VkVertexInputBindingDescription> *binding) {
+  v.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   v.pVertexAttributeDescriptions = off->data();
-  v.pVertexBindingDescriptions = &binding;
-  v.vertexBindingDescriptionCount = 1;
-  v.vertexAttributeDescriptionCount = 2;
+  v.pVertexBindingDescriptions = binding->data();
+  v.vertexBindingDescriptionCount = binding->size();
+  v.vertexAttributeDescriptionCount = off->size();
 }
 
 VkFormat chooseFormat(uint32_t basetype, uint32_t vecsize) {

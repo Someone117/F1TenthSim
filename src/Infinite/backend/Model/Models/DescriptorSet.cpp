@@ -11,12 +11,13 @@
 namespace Infinite {
 
 DescriptorSet::DescriptorSet(){};
-DescriptorSet::DescriptorSet(
-    VkDevice device, std::vector<DescriptorSetLayout> newHighLevelLayout) {
-  highLevelLayout = newHighLevelLayout;
-  descriptorSetLayout = createDescriptorSetLayout(device, highLevelLayout);
+DescriptorSet::DescriptorSet(VkDevice device,
+                             VkDescriptorSetLayout *descriptorSetLayout,
+                             ShaderLayout *_shaderLayout) {
+  shaderLayout = _shaderLayout;
   std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT,
-                                             descriptorSetLayout);
+                                             *descriptorSetLayout);
+
   VkDescriptorSetAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
   allocInfo.descriptorPool = descriptorPool;
@@ -31,7 +32,7 @@ DescriptorSet::DescriptorSet(
   }
 }
 void DescriptorSet::createDescriptorPool(VkDevice device) {
-  std::array<VkDescriptorPoolSize, 3>
+  std::array<VkDescriptorPoolSize, 4>
       poolSizes{}; // TODO: implement a way to resize this thing
   poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   poolSizes[0].descriptorCount =
@@ -42,6 +43,9 @@ void DescriptorSet::createDescriptorPool(VkDevice device) {
 
   poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
   poolSizes[2].descriptorCount =
+      static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 2;
+  poolSizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  poolSizes[3].descriptorCount =
       static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 2;
 
   VkDescriptorPoolCreateInfo poolInfo{};
@@ -110,13 +114,14 @@ void DescriptorSet::createDescriptorSets(
                  // descriptor set
     std::vector<std::vector<VkDeviceSize>> bufferSizes,
     std::vector<VkImageView> imageViews, std::vector<VkSampler> samplers) {
+
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
     std::vector<VkWriteDescriptorSet> descriptorWrites{};
     size_t bufferIndex = 0;
     size_t imageIndex = 0;
 
-    for (int j = 0; j < highLevelLayout.size(); j++) {
-      switch (highLevelLayout[j].descriptorType) {
+    for (int j = 0; j < shaderLayout->highLevelLayout.size(); j++) {
+      switch (shaderLayout->highLevelLayout[j].descriptorType) {
       case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: {
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = buffers[i][bufferIndex];
@@ -145,7 +150,8 @@ void DescriptorSet::createDescriptorSets(
         descriptorWrite.dstSet = descriptorSets[i];
         descriptorWrite.dstBinding = j;
         descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = highLevelLayout[j].descriptorType;
+        descriptorWrite.descriptorType =
+            shaderLayout->highLevelLayout[j].descriptorType;
         descriptorWrite.descriptorCount = 1;
         descriptorWrite.pImageInfo = &imageInfo;
         descriptorWrites.push_back(descriptorWrite);
@@ -169,15 +175,35 @@ void DescriptorSet::createDescriptorSets(
         descriptorWrites.push_back(descriptorWrite);
         break;
       }
+      case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE: {
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = imageViews[imageIndex];
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = descriptorSets[i];
+        descriptorWrite.dstBinding = j;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType =
+            shaderLayout->highLevelLayout[j].descriptorType;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pImageInfo = &imageInfo;
+        descriptorWrites.push_back(descriptorWrite);
+        break;
+      }
       default:
+        throw std::runtime_error(
+            "Unknown descriptor type when createing descriptor sets");
         break;
       }
     }
 
     for (size_t j = 0; j < descriptorWrites.size(); j++) {
-      std::vector<VkWriteDescriptorSet> descriptorWrite1 = {descriptorWrites[j]};
+      std::vector<VkWriteDescriptorSet> descriptorWrite1 = {
+          descriptorWrites[j]};
       vkUpdateDescriptorSets(device, 1, descriptorWrite1.data(), 0, nullptr);
-
     }
     // vkUpdateDescriptorSets(device,
     //                        static_cast<uint32_t>(descriptorWrites.size()),
@@ -191,8 +217,6 @@ void DescriptorSet::cleanUpDescriptors(VkDevice device) {
   vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 }
 void DescriptorSet::destroy(VkDevice device) {
-  vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-
   vkFreeDescriptorSets(device, descriptorPool, MAX_FRAMES_IN_FLIGHT,
                        descriptorSets.data());
 }

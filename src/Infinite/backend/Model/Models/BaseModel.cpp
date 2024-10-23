@@ -1,6 +1,7 @@
 #include "BaseModel.h"
 #include "../../../util/VulkanUtils.h"
 #include "../../../util/constants.h"
+#include "../tiny_obj_loader.h"
 #include <cstddef>
 #include <cstring>
 #include <glm/ext/matrix_clip_space.hpp>
@@ -8,7 +9,17 @@
 #include <glm/gtx/hash.hpp>
 #include <iostream>
 #include <ostream>
+#include <unordered_map>
 #include <vulkan/vulkan_core.h>
+
+namespace std {
+template <> struct hash<Infinite::Vertex> {
+  size_t operator()(Infinite::Vertex const &vertex) const {
+    return (hash<glm::vec3>()(vertex.pos) ^
+            (hash<glm::vec2>()(vertex.texCoord) << 1));
+  }
+};
+} // namespace std
 
 namespace Infinite {
 
@@ -24,15 +35,12 @@ BaseModel::createUniformBuffer(VkDeviceSize bufferSize) {
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                  VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                     VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+                     VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT, "UniformBuffer");
   }
   return uniformBuffers;
 }
 
-void BaseModel::setScale(glm::vec3 newScale) {
-  scale = newScale;
-}
-
+void BaseModel::setScale(glm::vec3 newScale) { scale = newScale; }
 
 BufferAlloc BaseModel::getUniformBuffer(uint32_t currentImage) {
   return uniformBuffers[currentImage];
@@ -45,6 +53,46 @@ BaseModel::BaseModel(std::string _name) : name(std::move(_name)) {
   xAngle = 0.0f;
   yAngle = 0.0f;
   zAngle = 0.0f;
+  isComplete = false;
+}
+
+void BaseModel::loadModel(std::vector<Vertex> &vertices,
+                          std::vector<uint32_t> &indices,
+                          const std::string &model_path) {
+
+  tinyobj::ObjReader reader;
+
+  if (!reader.ParseFromFile(model_path)) {
+    if (!reader.Error().empty()) {
+      throw std::runtime_error("TinyObjReader: " + reader.Error());
+    }
+  }
+
+  if (!reader.Warning().empty()) {
+    std::cout << "TinyObjReader: " << reader.Warning();
+  }
+
+  auto &attrib = reader.GetAttrib();
+  auto &shapes = reader.GetShapes();
+
+  std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+
+  for (const auto &shape : shapes) {
+    for (const auto &index : shape.mesh.indices) {
+      Vertex vertex({attrib.vertices[3 * index.vertex_index + 0],
+                     attrib.vertices[3 * index.vertex_index + 1],
+                     attrib.vertices[3 * index.vertex_index + 2]},
+                    {attrib.texcoords[2 * index.texcoord_index + 0],
+                     1.0f - attrib.texcoords[2 * index.texcoord_index + 1]});
+
+      if (uniqueVertices.count(vertex) == 0) {
+        uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+        vertices.push_back(vertex);
+      }
+
+      indices.push_back(uniqueVertices[vertex]);
+    }
+  }
 }
 
 void BaseModel::updateUniformBuffer(uint32_t index, Camera camera,
@@ -104,6 +152,7 @@ void BaseModel::destroy(VkDevice device, VmaAllocator allocator) {
     vmaDestroyBuffer(allocator, uniformBuffers[i].buffer,
                      uniformBuffers[i].allocation);
   }
+  descriptorSet.destroy(device);
 }
 const std::vector<BufferAlloc> &BaseModel::getUniformBuffers() const {
   return uniformBuffers;
@@ -164,4 +213,21 @@ void BaseModel::createIndexBuffer(BufferAlloc &indexBuffer,
 
   vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 }
+// void BaseModel::createDescriptorSets(VkDevice device,
+//                                      VkDescriptorSetLayout
+//                                      *descriptorSetLayout, ShaderLayout
+//                                      *shaderLayout) {
+//   std::vector<std::vector<VkBuffer>> tempBuffers;
+//   std::vector<std::vector<VkDeviceSize>> tempBufferSizes;
+//   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+//     tempBuffers.push_back({uniformBuffers[i].buffer});
+//     tempBufferSizes.push_back({sizeof(UniformBufferObject)});
+//   }
+
+//   // create descriptor sets for this model
+//   descriptorSet = DescriptorSet(device, descriptorSetLayout, shaderLayout);
+//   descriptorSet.createDescriptorSets(device, tempBuffers, tempBufferSizes,
+//   {},
+//                                      {});
+// }
 } // namespace Infinite

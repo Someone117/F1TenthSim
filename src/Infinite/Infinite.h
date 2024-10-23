@@ -7,8 +7,14 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan_core.h>
 
-
 namespace Infinite {
+
+enum ScreenShotFormat {
+    PNG,
+    JPG,
+    PPM
+};
+
 
 class RenderPass;
 
@@ -44,6 +50,8 @@ void initInfinite(App app);
 void framebufferResizeCallback(GLFWwindow *window, int width, int height);
 
 bool checkValidationLayerSupport();
+
+void saveScreenshot(const char *filename, ScreenShotFormat format = PNG);
 
 void pickPhysicalDevice();
 void createLogicalDevice();

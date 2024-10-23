@@ -1,8 +1,11 @@
 #include "VulkanUtils.h"
 #include "../Infinite.h"
+#include <cstddef>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <string>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 #define VMA_IMPLEMENTATION
 #include "../libs/vk_mem_alloc.h"
@@ -15,7 +18,7 @@ namespace Infinite {
 
 void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
                   BufferAlloc &bufferAllocator, VkMemoryPropertyFlags memFlags,
-                  VmaAllocationCreateFlags vmaFlags) {
+                  VmaAllocationCreateFlags vmaFlags, std::string name) {
 
   VmaAllocationCreateInfo allocInfo = {};
   allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -33,6 +36,10 @@ void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
                       nullptr) != VK_SUCCESS) {
     throw std::runtime_error("failed to create vma buffer!");
   }
+  if(name != "") {
+  vmaSetAllocationName(allocator, bufferAllocator.allocation, name.c_str());
+
+  } 
 }
 
 bool hasStencilComponent(VkFormat format) {
@@ -61,9 +68,9 @@ std::vector<char> readFile(const std::string &filename) {
   return buffer;
 }
 
-std::array<VkVertexInputAttributeDescription, 2>
+std::vector<VkVertexInputAttributeDescription>
 Vertex::getAttributeDescriptions() {
-  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+  std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
   attributeDescriptions[0].binding = 0;
   attributeDescriptions[0].location = 0;
   attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;

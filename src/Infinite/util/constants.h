@@ -11,6 +11,17 @@
 #define GLFW_INCLUDE_VULKAN
 #endif
 
+#ifndef PARTICLE_COUNT
+#define PARTICLE_COUNT 128
+#endif
+
+#ifndef VMA_DEBUG_LOG_FORMAT
+#define VMA_LEAK_LOG_FORMAT(format, ...) do { \
+        printf((format), __VA_ARGS__); \
+        printf("\n"); \
+    } while(false)
+#endif
+
 #ifndef GLM_FORCE_RADIANS
 #define GLM_FORCE_RADIANS
 #endif

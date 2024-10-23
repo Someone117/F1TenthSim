@@ -1,98 +1,29 @@
 #include "ComputeRenderPass.h"
 #include "../../../Infinite.h"
 #include "../../../util/constants.h"
+#include "../../Model/Models/ComputeModel.h"
+#include "../../Software/ShaderAnalyzer.h"
 #include "RenderPass.h"
+#include "vk_mem_alloc.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <ctime>
 #include <iostream>
 #include <ostream>
-#include <random>
 #include <stdexcept>
 #include <sys/types.h>
 #include <vector>
 #include <vulkan/vulkan_core.h>
-#include "../../Software/ShaderAnalyzer.h"
 namespace Infinite {
 
-#define PARTICLE_COUNT 128
+void ComputeRenderPass::createDescriptorSets(
+    VkDescriptorSetLayout *descriptorSetLayout) {
+  computeModel =
+      ComputeModel(swapChainExtent.width, swapChainExtent.height, allocator);
 
-void ComputeRenderPass::createShaderStorageBuffers(uint32_t WIDTH,
-                                                   uint32_t HEIGHT,
-                                                   VmaAllocator allocator) {
-  shaderStorageBufferAlloc.resize(MAX_FRAMES_IN_FLIGHT);
-  // Initialize particles
-  std::default_random_engine rndEngine((unsigned)time(nullptr));
-  std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
-
-  // Initial particle positions on a circle
-  std::vector<Particle> particles(PARTICLE_COUNT);
-  for (auto &particle : particles) {
-    float r = 0.25f * sqrt(rndDist(rndEngine));
-    float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
-    float x = r * cos(theta) * HEIGHT / WIDTH;
-    float y = r * sin(theta);
-    particle.position = glm::vec2(x, y);
-    particle.velocity = glm::normalize(glm::vec2(x, y)) * 0.00025f;
-    particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine),
-                               rndDist(rndEngine), 1.0f);
-  }
-  VkDeviceSize bufferSize = sizeof(Particle) * PARTICLE_COUNT;
-
-  BufferAlloc stagingBufferAlloc;
-  createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferAlloc,
-               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-               VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
-
-  void *data;
-  vmaMapMemory(allocator, stagingBufferAlloc.allocation, &data);
-  memcpy(data, particles.data(), (size_t)bufferSize);
-  vmaUnmapMemory(allocator, stagingBufferAlloc.allocation);
-
-  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    createBuffer(
-        bufferSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        shaderStorageBufferAlloc[i], VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    // Copy data from the staging buffer (host) to the shader storage buffer
-    // (GPU)
-    copyBuffer(stagingBufferAlloc, shaderStorageBufferAlloc[i], bufferSize,
-               queues[static_cast<uint32_t>(QueueOrder::COMPUTE)].queue);
-  }
-}
-
-void ComputeRenderPass::createDescriptorSets() {
-  computeModel = ComputeModel();
-
-  std::vector<DescriptorSetLayout> computeLayout = {
-      {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT},
-      {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT},
-      {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT}};
-
-  descriptorSet = DescriptorSet(device, computeLayout);
-
-  std::vector<std::vector<VkBuffer>> tempBuffers;
-  std::vector<std::vector<VkDeviceSize>> tempBufferSizes;
-  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    std::vector<VkBuffer> temp1;
-    std::vector<VkDeviceSize> temp2;
-
-    temp1.push_back({computeModel.value().getUniformBuffers()[i].buffer});
-    temp2.push_back({sizeof(UniformBufferObject)});
-    temp1.push_back(
-        {shaderStorageBufferAlloc[(i - 1) % MAX_FRAMES_IN_FLIGHT].buffer});
-    temp2.push_back({sizeof(Particle) * PARTICLE_COUNT});
-    temp1.push_back({shaderStorageBufferAlloc[i].buffer});
-    temp2.push_back({sizeof(Particle) * PARTICLE_COUNT});
-    tempBuffers.push_back(temp1);
-    tempBufferSizes.push_back(temp2);
-  }
-
-  descriptorSet.createDescriptorSets(device, tempBuffers, tempBufferSizes, {},
-                                     {});
+  computeModel->createDescriptorSets2(device, descriptorSetLayout,
+                                      &shaderLayout);
 }
 
 void ComputeRenderPass::createPipeline(VkDevice device,
@@ -102,10 +33,11 @@ void ComputeRenderPass::createPipeline(VkDevice device,
 
   auto computeShaderModule = createShaderModule(computeShaderCode, device);
 
-  ShaderLayout layout = {};
-  generateShaderLayout(layout, {computeShaderModule}, {computeShaderCode});
-  VkDescriptorSetLayout descriptorSetLayout  = DescriptorSet::createDescriptorSetLayout(device, layout.highLevelLayout);
-
+  shaderLayout = {};
+  generateShaderLayout(shaderLayout, {computeShaderModule},
+                       {computeShaderCode});
+  descriptorSetLayout = DescriptorSet::createDescriptorSetLayout(
+      device, shaderLayout.highLevelLayout);
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -113,14 +45,14 @@ void ComputeRenderPass::createPipeline(VkDevice device,
   pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
   if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr,
-                             &computePipelineLayout) != VK_SUCCESS) {
+                             &pipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create compute pipeline layout!");
   }
 
   VkComputePipelineCreateInfo pipelineInfo{};
   pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-  pipelineInfo.layout = computePipelineLayout;
-  pipelineInfo.stage = layout.shaderStages[0];
+  pipelineInfo.layout = pipelineLayout;
+  pipelineInfo.stage = shaderLayout.shaderStages[0];
 
   VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
   computeShaderStageInfo.sType =
@@ -130,7 +62,7 @@ void ComputeRenderPass::createPipeline(VkDevice device,
   computeShaderStageInfo.pName = "main";
 
   if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
-                               nullptr, &computePipeline) != VK_SUCCESS) {
+                               nullptr, &renderPipeline) != VK_SUCCESS) {
     throw std::runtime_error("failed to create compute pipeline!");
   }
 
@@ -140,6 +72,10 @@ void ComputeRenderPass::createPipeline(VkDevice device,
 void ComputeRenderPass::recordComputeCommandBuffer(
     VkCommandBuffer commandBuffer) {
   VkCommandBufferBeginInfo beginInfo{};
+
+  Image::transitionImageLayout(
+      computeModel->getTexture(), VK_FORMAT_R32G32B32A32_SFLOAT,
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
   if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
@@ -148,10 +84,12 @@ void ComputeRenderPass::recordComputeCommandBuffer(
   }
 
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                    computePipeline);
+                    renderPipeline);
+
   vkCmdBindDescriptorSets(
-      commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
-      1, &descriptorSet.getDescriptorSets()[currentFrame], 0, nullptr);
+      commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1,
+      &computeModel->getDescriptorSet2().getDescriptorSets()[currentFrame], 0,
+      nullptr);
 
   vkCmdDispatch(commandBuffer, PARTICLE_COUNT / 256, 1, 1);
 
@@ -168,8 +106,8 @@ void ComputeRenderPass ::resetFences() {
   vkResetFences(device, 1, &inFlightFences[currentFrame]);
 }
 
-VkSubmitInfo ComputeRenderPass::renderFrame(uint32_t currentFrame,
-                                            uint32_t imageIndex) {
+void ComputeRenderPass::renderFrame(uint32_t currentFrame, uint32_t imageIndex,
+                                    std::vector<VkSemaphore> prevSemaphores) {
   VkSubmitInfo submitInfo{};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -182,7 +120,16 @@ VkSubmitInfo ComputeRenderPass::renderFrame(uint32_t currentFrame,
       &commandBufferManager.commandBuffers[currentFrame];
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores = &finishedSemaphores[currentFrame];
-  return submitInfo;
+  if (vkQueueSubmit(queues[static_cast<uint32_t>(QueueOrder::COMPUTE)].queue, 1,
+                    &submitInfo,
+                    getInFlighFences()[currentFrame]) != VK_SUCCESS) {
+    throw std::runtime_error("failed to submit compute command buffer!");
+  };
+
+  Image::transitionImageLayout(
+      computeModel->getTexture(), VK_FORMAT_R32G32B32A32_SFLOAT,
+      VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
 }
 void ComputeRenderPass::createCommandBuffers(VkCommandPool commandPool,
                                              VkPhysicalDevice physicalDevice,
@@ -215,16 +162,12 @@ void ComputeRenderPass::createSyncObjects(VkDevice device) {
 VkPipelineBindPoint ComputeRenderPass::getPipelineType() {
   return VK_PIPELINE_BIND_POINT_COMPUTE;
 }
-VkPipeline ComputeRenderPass::getPipeline() { return computePipeline; }
-VkPipelineLayout ComputeRenderPass::getPipelineLayout() const {
-  return computePipelineLayout;
-}
-void ComputeRenderPass::destroy(VkDevice device, VmaAllocator allocator) {
 
-  for (BaseModel *model : models) {
-    model->destroy(device, allocator);
-  }
-  vkDestroyPipeline(device, computePipeline, nullptr);
+void ComputeRenderPass::destroy(VkDevice device, VmaAllocator allocator) {
+  // computeModel->destroy(device, allocator);
+  vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+  vkDestroyPipeline(device, renderPipeline, nullptr);
   vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
   vkDestroyRenderPass(device, renderPass, nullptr);
 
@@ -294,8 +237,7 @@ void ComputeRenderPass::preInit(VkDevice device,
                                 VkSampleCountFlagBits msaaSamples,
                                 std::vector<VkImageView> swapChainImageViews) {
   createPipeline(device, msaaSamples);
-  createShaderStorageBuffers(swapChainExtent.width, swapChainExtent.height,
-                             allocator);
-  createDescriptorSets();
+  createDescriptorSets(&descriptorSetLayout);
+  models.push_back(&computeModel.value());
 }
 }; // namespace Infinite

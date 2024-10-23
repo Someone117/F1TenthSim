@@ -1,4 +1,5 @@
 #include "Infinite.h"
+#include "backend/Model/Image/Image.h"
 #include "backend/Model/Models/DescriptorSet.h"
 #include "backend/Rendering/Queues/Queue.h"
 #include "backend/Rendering/RenderPasses/RenderPass.h"
@@ -7,14 +8,22 @@
 #include "frontend/Camera.h"
 #include "util/VulkanUtils.h"
 #include "util/constants.h"
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <ostream>
 #include <set>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include <vulkan/vulkan_core.h>
+#ifndef STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "backend/Model/Image/stb_image_write.h"
+#endif
+#include "backend/Model/Image/stb_image.h"
 
 #include <vk_mem_alloc.h>
 
@@ -49,6 +58,7 @@ GLFWwindow *window;
 bool framebufferResized;
 
 void initInfinite(App app) {
+  std::cout << "Starting initiation of Infinite Engine" << std::endl;
   glfwInit();
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -118,6 +128,8 @@ void initInfinite(App app) {
     throw std::runtime_error("failed to create window surface!");
   }
 
+  std::cout << "Finished window setup" << std::endl;
+
   pickPhysicalDevice();
 
   createLogicalDevice();
@@ -173,31 +185,29 @@ void initInfinite(App app) {
 
   createCommandPool(imagePool, device);
 
+  std::cout << "Starting to create render passes" << std::endl;
+
   for (const auto &r : renderPasses) {
     r->createRenderPass(device, physicalDevice, swapChainImageFormat,
                         msaaSamples);
   }
 
-  std::vector<DescriptorSetLayout> layout = {
-      // vertex and frag
-      {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT},
-      {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-       VK_SHADER_STAGE_FRAGMENT_BIT}};
-
-  std::vector<DescriptorSetLayout> computeLayout = {
-      {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT},
-      {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT},
-      {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT}};
   DescriptorSet::createDescriptorPool(device);
+  bool first = false;
 
   for (const auto &r : renderPasses) {
-
     if (r->getPipelineType() == VK_PIPELINE_BIND_POINT_COMPUTE) {
+      std::cout << "Found compute render pass at index: " << r->getIndex()
+                << std::endl;
       r->preInit(device, physicalDevice, swapChainImageFormat, swapChainExtent,
                  allocator, msaaSamples, swapChainImageViews);
     } else {
-      swapChainFramebuffers.resize(swapChainImageViews.size());
-
+      if (!first) {
+        swapChainFramebuffers.resize(swapChainImageViews.size());
+        first = true;
+      }
+      std::cout << "Found graphics render pass at index: " << r->getIndex()
+                << std::endl;
       r->preInit(device, physicalDevice, swapChainImageFormat, swapChainExtent,
                  allocator, msaaSamples, swapChainImageViews);
     }
@@ -207,6 +217,7 @@ void initInfinite(App app) {
     r->createCommandBuffers(imagePool, physicalDevice, device);
     r->createSyncObjects(device);
   }
+  std::cout << "Finished initiation of Infinite Engine" << std::endl;
 }
 
 bool checkValidationLayerSupport() {
@@ -347,11 +358,8 @@ void recreateSwapChain() { // named wrong
 }
 
 void renderFrame() {
-
   // Compute submission
-  renderPasses[0]->waitForFences();
-  // do this now
-
+  renderPasses.front()->waitForFences();
   for (const auto &r : renderPasses) {
     if (r->getPipelineType() == VK_PIPELINE_BIND_POINT_COMPUTE)
       continue;
@@ -362,78 +370,43 @@ void renderFrame() {
     }
   }
 
-  renderPasses[0]->resetFences();
-
-  VkSubmitInfo submitInformation =
-      renderPasses[0]->renderFrame(currentFrame, -1); // last # is a placeholder
-
-  // err
-  if (vkQueueSubmit(queues[static_cast<uint32_t>(QueueOrder::COMPUTE)].queue, 1,
-                    &submitInformation,
-                    renderPasses[0]->getInFlighFences()[currentFrame]) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to submit compute command buffer!");
-  };
-
-  // graphics
-  renderPasses[1]->waitForFences();
-
+  uint32_t imageIndex = 0;
+  int32_t firstGraphics = -1;
+  std::vector<VkSemaphore> prevSemaphores = {};
   bool needToRecreateSwapChain = false;
+  for (uint32_t i = 0; i < renderPasses.size(); i++) {
+    if (i != 0) {
+      renderPasses[i]->waitForFences();
+    }
+    if (renderPasses[i]->getPipelineType() == VK_PIPELINE_BIND_POINT_GRAPHICS &&
+        firstGraphics == -1) {
+      firstGraphics = i;
+      VkResult result = vkAcquireNextImageKHR(
+          device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame],
+          VK_NULL_HANDLE, &imageIndex);
 
-  uint32_t imageIndex;
-  VkResult result = vkAcquireNextImageKHR(
-      device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame],
-      VK_NULL_HANDLE, &imageIndex);
+      if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        needToRecreateSwapChain = true;
+      } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("failed to acquire swap chain image!");
+      }
+      prevSemaphores.push_back(imageAvailableSemaphores[currentFrame]);
+    }
 
-  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-    needToRecreateSwapChain = true;
-  } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-    throw std::runtime_error("failed to acquire swap chain image!");
-  }
+    renderPasses[i]->resetFences();
 
-  renderPasses[1]->resetFences();
+    renderPasses[i]->renderFrame(currentFrame, imageIndex, prevSemaphores);
 
-  renderPasses[1]->renderFrame(
-      currentFrame, imageIndex); // just record command buffers for now
-  // hack untill it works
-  submitInformation = {};
-  submitInformation.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-  VkSemaphore waitSemaphores[] = {
-      renderPasses[0]->getFinishedSemaphores()[currentFrame],
-      imageAvailableSemaphores[currentFrame]};
-
-  VkPipelineStageFlags waitStages[] = {
-      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  submitInformation.waitSemaphoreCount = 2;
-  submitInformation.pWaitSemaphores = waitSemaphores;
-  submitInformation.pWaitDstStageMask = waitStages;
-
-  submitInformation.commandBufferCount = 1;
-
-  submitInformation.pCommandBuffers =
-      &renderPasses[1]->commandBufferManager.commandBuffers[currentFrame];
-
-  VkSemaphore signalSemaphores[] = {
-      renderPasses[1]
-          ->getFinishedSemaphores()[currentFrame]}; // Todo: is this necessary
-
-  submitInformation.signalSemaphoreCount = 1;
-  submitInformation.pSignalSemaphores = signalSemaphores;
-
-  if (vkQueueSubmit(queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue,
-                    1, &submitInformation,
-                    renderPasses[1]->getInFlighFences()[currentFrame]) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to submit draw command buffer!");
+    prevSemaphores.clear();
+    prevSemaphores.push_back(
+        renderPasses[i]->getFinishedSemaphores()[currentFrame]);
   }
 
   VkPresentInfoKHR presentInfo{};
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
   presentInfo.waitSemaphoreCount = 1;
-  presentInfo.pWaitSemaphores = signalSemaphores;
+  presentInfo.pWaitSemaphores = prevSemaphores.data();
 
   VkSwapchainKHR swapChains[] = {swapChain};
   presentInfo.swapchainCount = 1;
@@ -441,7 +414,7 @@ void renderFrame() {
 
   presentInfo.pImageIndices = &imageIndex;
 
-  result = vkQueuePresentKHR(
+  uint32_t result = vkQueuePresentKHR(
       queues[static_cast<uint32_t>(QueueOrder::PRESENT)].queue, &presentInfo);
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
       framebufferResized) {
@@ -451,7 +424,6 @@ void renderFrame() {
   } else if (result != VK_SUCCESS) {
     throw std::runtime_error("failed to present swap chain image!");
   }
-
   currentFrame = ((currentFrame + 1) % MAX_FRAMES_IN_FLIGHT);
   if (needToRecreateSwapChain) {
     recreateSwapChain();
@@ -462,8 +434,8 @@ void waitForNextFrame() { vkDeviceWaitIdle(device); }
 
 // todo: check a LOT
 void cleanUp() {
-  for (const auto &r : renderPasses) {
-    r->destroy(device, allocator);
+  for (uint32_t i = 0; i < renderPasses.size(); i++) {
+    renderPasses[i]->destroy(device, allocator);
   }
   for (const auto &c : cameras) {
     c->~Camera();
@@ -557,7 +529,7 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
               const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
               void *pUserData) {
   // if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-  std::cout << "validation layer: " << pCallbackData->pMessage << std::endl;
+  std::cout << "Validation Layer: " << pCallbackData->pMessage << std::endl;
   // }
   return VK_FALSE;
 }
@@ -672,6 +644,221 @@ VkSampleCountFlagBits getMaxUsableSampleCount() {
   return VK_SAMPLE_COUNT_1_BIT;
 }
 
+void saveScreenshot(const char *filename, ScreenShotFormat screenshotFormat) {
+  bool supportsBlit = true;
+
+  // Check blit support for source and destination
+  VkFormatProperties formatProps;
+
+  // Check if the device supports blitting from optimal images (the swapchain
+  // images are in optimal format)
+  vkGetPhysicalDeviceFormatProperties(physicalDevice, swapChainImageFormat,
+                                      &formatProps);
+  if (!(formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT)) {
+    std::cerr << "Device does not support blitting from optimal tiled images, "
+                 "using copy instead of blit!"
+              << std::endl;
+    supportsBlit = false;
+  }
+
+  // Check if the device supports blitting to linear images
+  // vkGetPhysicalDeviceFormatProperties(physicalDevice,
+  // VK_FORMAT_R8G8B8A8_UNORM,
+  //                                     &formatProps);
+  // if (!(formatProps.linearTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
+  //   std::cerr << "Device does not support blitting to linear tiled images, "
+  //                "using copy instead of blit!"
+  //             << std::endl;
+  //   supportsBlit = false;
+  // }
+
+  // Check if the device supports blitting to linear images
+  vkGetPhysicalDeviceFormatProperties(physicalDevice, VK_FORMAT_R8G8B8A8_SRGB,
+                                      &formatProps);
+  if (!(formatProps.linearTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
+    std::cerr << "Device does not support blitting to linear tiled images, "
+                 "using copy instead of blit!"
+              << std::endl;
+    supportsBlit = false;
+  }
+
+  // Source for the copy is the last rendered swapchain image
+  VkImage srcImage = swapChainImages[currentFrame];
+
+  // Create the linear tiled destination image to copy to and to read the memory
+  // from
+
+  Image destImage{};
+  Image::createImage(swapChainExtent.width, swapChainExtent.width,
+                     VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB,
+                     VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                     destImage.getImage(), VK_SAMPLE_COUNT_1_BIT,
+                     VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
+  // Do the actual blit from the swapchain image to our host visible destination
+  // image
+
+  VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, imagePool);
+  // Transition destination image to transfer destination layout
+
+  Image::addBarrier(&destImage, VK_FORMAT_R8G8B8A8_SRGB,
+                    VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_SAMPLE_COUNT_1_BIT,
+                    commandBuffer);
+
+  // Transition swapchain image from present to transfer source layout
+  Image::addBarrier(&srcImage, VK_FORMAT_R8G8B8A8_SRGB,
+                    VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_SAMPLE_COUNT_1_BIT,
+                    commandBuffer);
+
+  // If source and destination support blit we'll blit as this also does
+  // automatic format conversion (e.g. from BGR to RGB)
+  if (supportsBlit) {
+    // Define the region to blit (we will blit the whole swapchain image)
+    VkOffset3D blitSize;
+    blitSize.x = swapChainExtent.width;
+    blitSize.y = swapChainExtent.height;
+    blitSize.z = 1;
+    VkImageBlit imageBlitRegion{};
+    imageBlitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageBlitRegion.srcSubresource.layerCount = 1;
+    imageBlitRegion.srcOffsets[1] = blitSize;
+    imageBlitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageBlitRegion.dstSubresource.layerCount = 1;
+    imageBlitRegion.dstOffsets[1] = blitSize;
+
+    // Issue the blit command
+    vkCmdBlitImage(
+        commandBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        destImage.getImage().image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+        &imageBlitRegion, VK_FILTER_NEAREST);
+  } else {
+    // Otherwise use image copy (requires us to manually flip components)
+    VkImageCopy imageCopyRegion{};
+    imageCopyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageCopyRegion.srcSubresource.layerCount = 1;
+    imageCopyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageCopyRegion.dstSubresource.layerCount = 1;
+    imageCopyRegion.extent.width = swapChainExtent.width;
+    imageCopyRegion.extent.height = swapChainExtent.height;
+    imageCopyRegion.extent.depth = 1;
+
+    // Issue the copy command
+    vkCmdCopyImage(commandBuffer, srcImage,
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   destImage.getImage().image,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopyRegion);
+  }
+
+  // Transition destination image to general layout, which is the required
+  // layout for mapping the image memory later on
+  Image::addBarrier(
+      &destImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      VK_IMAGE_LAYOUT_GENERAL, VK_SAMPLE_COUNT_1_BIT, commandBuffer);
+
+  Image::addBarrier(
+      &srcImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_SAMPLE_COUNT_1_BIT, commandBuffer);
+  // Transition back the swap chain image after the blit is done
+
+  endSingleTimeCommands(
+      device, commandBuffer, imagePool,
+      queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue);
+
+  // Get layout of the image (including row pitch)
+  VkImageSubresource subResource{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
+  VkSubresourceLayout subResourceLayout;
+  vkGetImageSubresourceLayout(device, destImage.getImage().image, &subResource,
+                              &subResourceLayout);
+
+  // Map image memory so we can start copying from it
+  const char *data;
+  vmaMapMemory(allocator, destImage.getImage().allocation, (void **)&data);
+
+  if (screenshotFormat == PNG || screenshotFormat == JPG) {
+    // Allocate a buffer to hold the image data without row padding
+    uint32_t bytesPerPixel = 4; // Assuming 4 bytes per pixel (RGBA)
+    std::vector<uint8_t> tightlyPackedData(
+        swapChainExtent.width * swapChainExtent.height * bytesPerPixel);
+
+    // Copy each row from the original image data, skipping the padding bytes
+    uint8_t *srcData = reinterpret_cast<uint8_t *>(const_cast<char *>(data));
+    for (uint32_t y = 0; y < swapChainExtent.height; ++y) {
+      // Calculate source and destination pointers
+      uint8_t *srcRow =
+          srcData +
+          y * subResourceLayout.rowPitch; // The row pitch includes padding
+      uint8_t *dstRow =
+          tightlyPackedData.data() + y * swapChainExtent.width * bytesPerPixel;
+
+      // Copy the valid row data (excluding padding)
+      memcpy(dstRow, srcRow, swapChainExtent.width * bytesPerPixel);
+    }
+
+    if (screenshotFormat == PNG) {
+      stbi_write_png(filename, swapChainExtent.width, swapChainExtent.height, 4,
+                     tightlyPackedData.data(),
+                     swapChainExtent.width * bytesPerPixel);
+    } else {
+      stbi_write_jpg(filename, swapChainExtent.width, swapChainExtent.height,
+                     4, tightlyPackedData.data(), 100);
+    }
+  } else {
+    data += subResourceLayout.offset;
+
+    std::ofstream file(filename, std::ios::out | std::ios::binary);
+
+    // ppm header
+    file << "P6\n"
+         << swapChainExtent.width << "\n"
+         << swapChainExtent.height << "\n"
+         << 255 << "\n";
+
+    // If source is BGR (destination is always RGB) and we can't use blit (which
+    // does automatic conversion), we'll have to manually swizzle color
+    // components
+    bool colorSwizzle = false;
+    // Check if source is BGR
+    // Note: Not complete, only contains most common and basic BGR surface
+    // formats for demonstration purposes
+    if (!supportsBlit) {
+      std::vector<VkFormat> formatsBGR = {VK_FORMAT_B8G8R8A8_SRGB,
+                                          VK_FORMAT_B8G8R8A8_UNORM,
+                                          VK_FORMAT_B8G8R8A8_SNORM};
+
+      for (VkFormat format : formatsBGR) {
+        if (format == swapChainImageFormat) {
+          colorSwizzle = true;
+          break;
+        }
+      }
+    }
+    // ppm binary pixel data
+    for (uint32_t y = 0; y < swapChainExtent.height; y++) {
+      unsigned int *row = (unsigned int *)data;
+      for (uint32_t x = 0; x < swapChainExtent.width; x++) {
+        if (colorSwizzle) {
+          file.write((char *)row + 2, 1);
+          file.write((char *)row + 1, 1);
+          file.write((char *)row, 1);
+        } else {
+          file.write((char *)row, 3);
+        }
+        row++;
+      }
+      data += subResourceLayout.rowPitch;
+    }
+    file.close();
+  }
+
+  std::cout << "Screenshot saved to disk" << std::endl;
+
+  // Clean up resources
+  vmaUnmapMemory(allocator, destImage.getImage().allocation);
+  destImage.destroy(allocator);
+}
+
 // Swap Chain
 void cleanupSwapChain() {
   for (VkFramebuffer swapChainFramebuffer : swapChainFramebuffers) {
@@ -710,7 +897,10 @@ void createSwapChain() {
   createInfo.imageColorSpace = surfaceFormat.colorSpace;
   createInfo.imageExtent = extent;
   createInfo.imageArrayLayers = 1;
-  createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  createInfo.imageUsage =
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT; // VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                                       // for screenshots
 
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
   uint32_t queueFamilyIndices[static_cast<int>(QueueOrder::Count)];

@@ -18,6 +18,8 @@ private:
 public:
   explicit TexturedImage(const char *filePath) : _filePath(filePath) {}
 
+  explicit TexturedImage() : _filePath(NULL) {}
+
   void create(unsigned int width, unsigned int height, VkFormat colorFormat,
               VkPhysicalDevice physicalDevice, VmaAllocator allocator) override;
 

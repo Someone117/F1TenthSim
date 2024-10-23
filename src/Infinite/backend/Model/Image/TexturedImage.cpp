@@ -2,10 +2,13 @@
 #include "../../../Infinite.h"
 #include "../../../backend/Settings.h"
 #include <cstring>
+#include <iostream>
+#include <ostream>
 #include <stdexcept>
+#include <vulkan/vulkan_core.h>
 #ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#include "sbt_image.h"
+#include "stb_image.h"
 #endif
 
 namespace Infinite {
@@ -14,50 +17,123 @@ void TexturedImage::create(unsigned int width, unsigned int height,
                            VkFormat colorFormat,
                            VkPhysicalDevice physicalDevice,
                            VmaAllocator allocator) {
-  int texWidth, texHeight, texChannels;
-  stbi_uc *pixels =
-      stbi_load(_filePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-  mipLevels = static_cast<uint32_t>(
-                  std::floor(std::log2(std::max(texWidth, texHeight)))) +
-              1;
+  if (_filePath == NULL) {
+    // createImage(swapChainExtent.width, swapChainExtent.height, mipLevels,
+    //             VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_OPTIMAL,
+    //             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+    //             |
+    //                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+    //                 VK_IMAGE_USAGE_STORAGE_BIT,
+    //             _image);
+    // transitionImageLayout(this, VK_FORMAT_R32G32B32A32_SFLOAT,
+    //                       VK_IMAGE_LAYOUT_UNDEFINED,
+    //                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-  VkDeviceSize imageSize = texWidth * texHeight * 4;
-  if (!pixels) {
-    throw std::runtime_error("failed to load texture image!");
+    // _image_view =
+    //     createImageView(_image.image, VK_FORMAT_R32G32B32A32_SFLOAT,
+    //     mipLevels);
+    // createSampler();
+
+    int texWidth, texHeight, texChannels;
+    stbi_uc *pixels = stbi_load(R"(../assets/untitled.png)", &texWidth,
+                                &texHeight, &texChannels, STBI_rgb_alpha);
+    VkDeviceSize imageSize = texWidth * texHeight * 16;
+    if (!pixels) {
+      throw std::runtime_error("failed to load texture image!");
+    }
+
+    std::vector<float> floatPixels(texWidth * texHeight *
+                                   4); // 4 floats per pixel
+
+    // Convert 8-bit RGBA to 32-bit floats
+    for (int i = 0; i < texWidth * texHeight; ++i) {
+      floatPixels[i * 4 + 0] = pixels[i * 4 + 0] / 255.0f; // R
+      floatPixels[i * 4 + 1] = pixels[i * 4 + 1] / 255.0f; // G
+      floatPixels[i * 4 + 2] = pixels[i * 4 + 2] / 255.0f; // B
+      floatPixels[i * 4 + 3] = pixels[i * 4 + 3] / 255.0f; // A
+    }
+
+    BufferAlloc stagingBuffer{};
+    createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                     VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+    void *data;
+    vmaMapMemory(allocator, stagingBuffer.allocation, &data);
+    memcpy(data, floatPixels.data(), static_cast<size_t>(imageSize));
+    vmaUnmapMemory(allocator, stagingBuffer.allocation);
+
+    stbi_image_free(pixels);
+
+    createImage(texWidth, texHeight, 1, VK_FORMAT_R32G32B32A32_SFLOAT,
+                VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                    VK_IMAGE_USAGE_STORAGE_BIT,
+                _image);
+
+    transitionImageLayout(this, VK_FORMAT_R32G32B32A32_SFLOAT,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+    copyBufferToImage(stagingBuffer, this, static_cast<uint32_t>(texWidth),
+                      static_cast<uint32_t>(texHeight));
+
+    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+    transitionImageLayout(this, VK_FORMAT_R32G32B32A32_SFLOAT,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1);
+
+    _image_view =
+        createImageView(_image.image, VK_FORMAT_R32G32B32A32_SFLOAT, 1);
+    createSampler();
+
+  } else {
+    int texWidth, texHeight, texChannels;
+    stbi_uc *pixels = stbi_load(_filePath, &texWidth, &texHeight, &texChannels,
+                                STBI_rgb_alpha);
+    mipLevels = static_cast<uint32_t>(
+                    std::floor(std::log2(std::max(texWidth, texHeight)))) +
+                1;
+
+    VkDeviceSize imageSize = texWidth * texHeight * 4;
+    if (!pixels) {
+      throw std::runtime_error("failed to load texture image!");
+    }
+    BufferAlloc stagingBuffer{};
+    createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                     VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+    void *data;
+    vmaMapMemory(allocator, stagingBuffer.allocation, &data);
+    memcpy(data, pixels, static_cast<size_t>(imageSize));
+    vmaUnmapMemory(allocator, stagingBuffer.allocation);
+
+    stbi_image_free(pixels);
+
+    createImage(texWidth, texHeight, mipLevels, VK_FORMAT_R8G8B8A8_SRGB,
+                VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                _image);
+
+    transitionImageLayout(this, VK_FORMAT_R8G8B8A8_SRGB,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+    copyBufferToImage(stagingBuffer, this, static_cast<uint32_t>(texWidth),
+                      static_cast<uint32_t>(texHeight));
+
+    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+
+    generateMipmaps(this, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight,
+                    mipLevels);
+
+    _image_view =
+        createImageView(_image.image, VK_FORMAT_R8G8B8A8_SRGB, mipLevels);
+    createSampler();
   }
-  BufferAlloc stagingBuffer{};
-  createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBuffer,
-               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-               VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                   VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-  void *data;
-  vmaMapMemory(allocator, stagingBuffer.allocation, &data);
-  memcpy(data, pixels, static_cast<size_t>(imageSize));
-  vmaUnmapMemory(allocator, stagingBuffer.allocation);
-
-  stbi_image_free(pixels);
-
-  createImage(texWidth, texHeight, mipLevels, VK_FORMAT_R8G8B8A8_SRGB,
-              VK_IMAGE_TILING_OPTIMAL,
-              VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-              _image);
-
-  transitionImageLayout(this, VK_FORMAT_R8G8B8A8_SRGB,
-                        VK_IMAGE_LAYOUT_UNDEFINED,
-                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
-  copyBufferToImage(stagingBuffer, this, static_cast<uint32_t>(texWidth),
-                    static_cast<uint32_t>(texHeight));
-
-  vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
-
-  generateMipmaps(this, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight,
-                  mipLevels);
-
-  _image_view =
-      createImageView(_image.image, VK_FORMAT_R8G8B8A8_SRGB, mipLevels);
-  createSampler();
 }
 
 void TexturedImage::generateMipmaps(Image *image, VkFormat format, int width,

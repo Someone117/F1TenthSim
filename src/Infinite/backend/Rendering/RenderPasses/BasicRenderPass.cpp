@@ -56,11 +56,16 @@ void BasicRenderPass::preInit(VkDevice device, VkPhysicalDevice physicalDevice,
 
 void BasicRenderPass::destroy(VkDevice device, VmaAllocator allocator) {
   destroyDepthAndColorImages(allocator);
-
   for (BaseModel *model : models) {
     model->destroy(device, allocator);
   }
-  vkDestroyPipeline(device, graphicsPipeline, nullptr);
+
+  vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+  // std::cout << &pipelineLayout << std::endl;
+  // std::cout << pipelineLayout << std::endl;
+
+  vkDestroyPipeline(device, renderPipeline, nullptr);
   vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
   vkDestroyRenderPass(device, renderPass, nullptr);
 
@@ -76,12 +81,13 @@ void BasicRenderPass::createDepthAndColorImages(unsigned int width,
                                                 VkFormat colorFormat,
                                                 VkPhysicalDevice physicalDevice,
                                                 VmaAllocator allocator) {
+
   if (colorImageReasource == VK_NULL_HANDLE) {
     colorImageReasource = new ColorImage;
   }
+
   colorImageReasource->create(width, height, colorFormat, physicalDevice,
                               allocator);
-
   if (depthImageReasource == VK_NULL_HANDLE) {
     depthImageReasource = new DepthImage;
   }
@@ -103,7 +109,9 @@ void BasicRenderPass::recreateSwapChainWork(
     VmaAllocator allocator, VkDevice device, VkPhysicalDevice physicalDevice,
     VkFormat swapChainImageFormat, VkExtent2D swapChainExtent,
     std::vector<VkImageView> swapChainImageViews) {
+
   destroyDepthAndColorImages(allocator);
+
   createDepthAndColorImages(swapChainExtent.width, swapChainExtent.height,
                             swapChainImageFormat, physicalDevice, allocator);
 
@@ -159,6 +167,8 @@ void BasicRenderPass::destroyDepthAndColorImages(VmaAllocator allocator) {
   colorImageReasource->destroy(allocator);
   delete depthImageReasource;
   delete colorImageReasource;
+  depthImageReasource = VK_NULL_HANDLE;
+  colorImageReasource = VK_NULL_HANDLE;
 }
 
 ColorImage *BasicRenderPass::getColorImageReasource() const {
@@ -167,12 +177,6 @@ ColorImage *BasicRenderPass::getColorImageReasource() const {
 
 DepthImage *BasicRenderPass::getDepthImageReasource() const {
   return depthImageReasource;
-}
-
-VkPipeline BasicRenderPass::getPipeline() { return graphicsPipeline; }
-
-VkPipelineLayout BasicRenderPass::getPipelineLayout() const {
-  return pipelineLayout;
 }
 
 VkCommandBuffer BasicRenderPass::getCommandBuffer(uint32_t index) {
@@ -266,16 +270,17 @@ void BasicRenderPass::createPipeline(VkDevice device,
   VkShaderModule vertShaderModule = createShaderModule(vertShaderCode, device);
   VkShaderModule fragShaderModule = createShaderModule(fragShaderCode, device);
 
-  std::array<VkVertexInputAttributeDescription, 2> attributes = Vertex::getAttributeDescriptions();
-  std::vector<VkVertexInputBindingDescription> bindings = {Vertex::getBindingDescription()};
+  std::vector<VkVertexInputAttributeDescription> attributes =
+      Vertex::getAttributeDescriptions();
+  std::vector<VkVertexInputBindingDescription> bindings = {
+      Vertex::getBindingDescription()};
 
-  ShaderLayout layout = {};
-  generateShaderLayout(layout, {vertShaderModule, fragShaderModule},
+  shaderLayout = {};
+  generateShaderLayout(shaderLayout, {vertShaderModule, fragShaderModule},
                        {vertShaderCode, fragShaderCode});
 
-  VkDescriptorSetLayout descriptorSetLayout =
-      DescriptorSet::createDescriptorSetLayout(device, layout.highLevelLayout);
-
+  descriptorSetLayout = DescriptorSet::createDescriptorSetLayout(
+      device, shaderLayout.highLevelLayout);
 
   VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
   inputAssembly.sType =
@@ -365,14 +370,10 @@ void BasicRenderPass::createPipeline(VkDevice device,
   VkGraphicsPipelineCreateInfo pipelineInfo{};
   pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipelineInfo.stageCount = 2;
-  pipelineInfo.pStages = layout.shaderStages.data();
-
+  pipelineInfo.pStages = shaderLayout.shaderStages.data();
 
   VkPipelineVertexInputStateCreateInfo infoV{};
-  infoV.pVertexAttributeDescriptions = attributes.data();
-  infoV.pVertexBindingDescriptions = bindings.data();
-  infoV.vertexBindingDescriptionCount = bindings.size();
-  infoV.vertexAttributeDescriptionCount = attributes.size();
+  createVCI(infoV, &attributes, &bindings);
 
   pipelineInfo.pVertexInputState = &infoV;
   pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -389,7 +390,7 @@ void BasicRenderPass::createPipeline(VkDevice device,
   pipelineInfo.basePipelineIndex = -1;              // Optional
 
   if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
-                                nullptr, &graphicsPipeline) != VK_SUCCESS) {
+                                nullptr, &renderPipeline) != VK_SUCCESS) {
     throw std::runtime_error("failed to create graphics pipeline!");
   }
 
@@ -427,7 +428,7 @@ void BasicRenderPass::recordCommandBuffer(VkCommandBuffer commandBuffer,
                        VK_SUBPASS_CONTENTS_INLINE);
 
   // Commands
-  vkCmdBindPipeline(commandBuffer, getPipelineType(), graphicsPipeline);
+  vkCmdBindPipeline(commandBuffer, getPipelineType(), renderPipeline);
 
   VkViewport viewport{};
   viewport.x = 0.0f;
@@ -446,12 +447,14 @@ void BasicRenderPass::recordCommandBuffer(VkCommandBuffer commandBuffer,
   for (int i = 0; i < getModels().size(); i++) {
     BufferAlloc vertexBuffers[] = {getModels()[i]->getVertexBuffer()};
     VkDeviceSize offsets[] = {0};
+
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffers->buffer,
                            offsets);
 
     vkCmdBindIndexBuffer(commandBuffer, getModels()[i]->getIndexBuffer().buffer,
                          0, VK_INDEX_TYPE_UINT32);
 
+    // err next line
     vkCmdBindDescriptorSets(
         commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, getPipelineLayout(), 0,
         1,
@@ -471,36 +474,47 @@ void BasicRenderPass::recordCommandBuffer(VkCommandBuffer commandBuffer,
   }
 }
 
-VkSubmitInfo BasicRenderPass::renderFrame(uint32_t currentFrame,
-                                          uint32_t imageIndex) {
-  VkSubmitInfo submitInformation;
+void BasicRenderPass::renderFrame(uint32_t currentFrame, uint32_t imageIndex,
+                                  std::vector<VkSemaphore> prevSemaphores) {
+
+  for (uint32_t i = 0; i < getModels().size(); i++) {
+    if (!getModels()[i]->finishedInit()) {
+      models[i]->createDescriptorSets(device, &descriptorSetLayout,
+                                      &shaderLayout);
+    }
+  }
+
+  VkSubmitInfo submitInformation = {};
   vkResetCommandBuffer(commandBufferManager.commandBuffers[currentFrame], 0);
 
   recordCommandBuffer(commandBufferManager.commandBuffers[currentFrame],
                       imageIndex, currentFrame);
 
-  // submitInformation.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInformation.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-  // VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
+  // work on
+  VkPipelineStageFlags waitStages[] = {
+      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  submitInformation.waitSemaphoreCount = prevSemaphores.size();
+  submitInformation.pWaitSemaphores = prevSemaphores.data();
+  submitInformation.pWaitDstStageMask = waitStages;
 
-  // VkPipelineStageFlags waitStages[] = {
-  //     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  // submitInformation.waitSemaphoreCount = 1;
-  // submitInformation.pWaitSemaphores = waitSemaphores;
-  // submitInformation.pWaitDstStageMask = waitStages;
+  submitInformation.commandBufferCount = 1;
 
-  // submitInformation.commandBufferCount = 1;
-  // submitInformation.pNext = VK_NULL_HANDLE;
+  submitInformation.pCommandBuffers =
+      &commandBufferManager.commandBuffers[currentFrame];
 
-  // const VkCommandBuffer v =
-  // commandBufferManager.commandBuffers[currentFrame];
-  // submitInformation.pCommandBuffers = &v;
+  VkSemaphore signalSemaphores[] = {getFinishedSemaphores()[currentFrame]};
 
-  // VkSemaphore signalSemaphores[] = {
-  //     finishedSemaphores[currentFrame]}; // Todo: is this necessary
-  // submitInformation.signalSemaphoreCount = 1;
-  // submitInformation.pSignalSemaphores = signalSemaphores;
-  return submitInformation;
+  submitInformation.signalSemaphoreCount = 1;
+  submitInformation.pSignalSemaphores = signalSemaphores;
+
+  if (vkQueueSubmit(queues[static_cast<uint32_t>(QueueOrder::GRAPHICS)].queue,
+                    1, &submitInformation,
+                    getInFlighFences()[currentFrame]) != VK_SUCCESS) {
+    throw std::runtime_error("failed to submit draw command buffer!");
+  }
 }
 
 void BasicRenderPass::waitForFences() {

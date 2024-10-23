@@ -12,6 +12,7 @@ void ColorImage::create(unsigned int width, unsigned int height,
                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
               _image, msaaSamples);
 
+
   _image_view =
       createImageView(_image.image, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }

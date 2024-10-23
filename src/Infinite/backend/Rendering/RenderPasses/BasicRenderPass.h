@@ -1,33 +1,33 @@
 #ifndef VULKAN_BASICRENDERPASS_H
 #define VULKAN_BASICRENDERPASS_H
 
+#pragma once
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
-#pragma once
 
+#include "../../Model/Image/ColorImage.h"
+#include "../../Model/Image/DepthImage.h"
 #include "RenderPass.h"
 
 namespace Infinite {
 
 class BasicRenderPass : public RenderPass {
 private:
-  VkPipeline graphicsPipeline;
-
-
   void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex,
                            uint32_t currentFrame);
+  ColorImage *colorImageReasource;
+  DepthImage *depthImageReasource;
 
 public:
   void waitForFences() override;
   void resetFences() override;
 
   void preInit(VkDevice device, VkPhysicalDevice physicalDevice,
-               VkFormat swapChainImageFormat,
-               VkExtent2D swapChainExtent, VmaAllocator allocator,
-               VkSampleCountFlagBits msaaSamples,
+               VkFormat swapChainImageFormat, VkExtent2D swapChainExtent,
+               VmaAllocator allocator, VkSampleCountFlagBits msaaSamples,
                std::vector<VkImageView> swapChainImageViews) override;
 
-  void destroy(VkDevice device, VmaAllocator allocator);
+  void destroy(VkDevice device, VmaAllocator allocator) override;
 
   void createRenderPass(VkDevice device, VkPhysicalDevice physicalDevice,
                         VkFormat swapChainImageFormat,
@@ -57,12 +57,10 @@ public:
 
   DepthImage *getDepthImageReasource() const;
 
-  VkPipeline getPipeline() override;
-
-  VkPipelineLayout getPipelineLayout() const override;
   VkCommandBuffer getCommandBuffer(uint32_t index);
   VkPipelineBindPoint getPipelineType() override;
-  VkSubmitInfo renderFrame(uint32_t currentFrame, uint32_t imageIndex) override;
+  void renderFrame(uint32_t currentFrame, uint32_t imageIndex,
+                   std::vector<VkSemaphore> prevSemaphores) override;
 };
 
 } // namespace Infinite
