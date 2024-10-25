@@ -17,6 +17,9 @@ private:
   uint32_t indexCount;
 
 public:
+  std::vector<Vertex> vertices;
+  std::vector<uint32_t> indices;
+
   void createDescriptorSets(VkDevice device,
                             VkDescriptorSetLayout *descriptorSetLayout,
                             ShaderLayout *shaderLayout) override;

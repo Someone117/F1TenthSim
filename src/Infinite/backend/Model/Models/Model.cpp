@@ -24,8 +24,7 @@ Model::Model(std::string _name, std::string model_path,
 
   texture.create(width, height, colorFormat, physicalDevice, allocator);
 
-  std::vector<Vertex> vertices;
-  std::vector<uint32_t> indices;
+  // std::vector<uint32_t> indices;
 
   loadModel(vertices, indices, model_path);
 

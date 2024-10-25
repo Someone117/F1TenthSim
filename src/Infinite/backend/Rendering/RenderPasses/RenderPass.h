@@ -86,6 +86,8 @@ public:
   // make protected
   CommandBuffer commandBufferManager;
 
+  std::vector<BaseModel *> models;
+
 protected:
   VkPipeline renderPipeline;
   std::vector<VkFence> inFlightFences;
@@ -98,8 +100,6 @@ protected:
   VkPipelineLayout pipelineLayout;
 
   VkCommandPool commandPool;
-
-  std::vector<BaseModel *> models;
 
   uint32_t index;
 

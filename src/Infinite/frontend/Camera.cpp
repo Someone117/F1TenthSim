@@ -1,7 +1,8 @@
 #include "Camera.h"
+#include <glm/fwd.hpp>
 
 namespace Infinite {
-std::vector<Camera *> cameras = {};
+Camera cameras = Camera(glm::vec3(10, 9, -0.5));
 
 void Camera::move(float amt, MoveDirection direction) {
   glm::vec3 forward =
@@ -27,7 +28,6 @@ void Camera::move(float amt, MoveDirection direction) {
 
 void Camera::mouse(float xpos, float ypos) {
   xAngle += xpos;
-
   // make sure that when pitch is out of bounds, screen doesn't get flipped
   yAngle = glm::clamp(yAngle + ypos, (float)-M_PI, 0.0f);
 }

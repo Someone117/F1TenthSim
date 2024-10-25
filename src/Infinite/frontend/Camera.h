@@ -15,7 +15,6 @@
 namespace Infinite {
 enum MoveDirection { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
 const glm::vec3 worldUp(0.0f, 0.0f, 1.0f);
-
 class Camera {
 public:
   explicit Camera(glm::vec3 pos = glm::vec3(0.0f, 0.0f, -1.0f),
@@ -66,6 +65,6 @@ private:
   glm::mat4 updateCameraVectors();
 };
 
-extern std::vector<Camera *> cameras;
+extern Camera cameras;
 } // namespace Infinite
 #endif // VULKAN_CAMERA_H

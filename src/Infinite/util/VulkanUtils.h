@@ -9,7 +9,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-#include "../libs/vk_mem_alloc.h"
+#include "../../../libs/vk_mem_alloc.h"
 
 #ifndef VK_MEM_ALLOC
 

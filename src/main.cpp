@@ -1,27 +1,37 @@
 #include "Infinite/Infinite.h"
 #include "Infinite/backend/Model/Models/Model.h"
 #include "Infinite/backend/Rendering/RenderPasses/BasicRenderPass.h"
-#include "Infinite/backend/Rendering/RenderPasses/ComputeRenderPass.h"
 #include "Infinite/frontend/Camera.h"
+#include "Infinite/frontend/Car.h"
 #include "Infinite/util/constants.h"
-
 #include <GLFW/glfw3.h>
 #include <climits>
 #include <cstdint>
 #include <glm/fwd.hpp>
 #include <iostream>
 #include <ostream>
-#include <string>
+
+
+#include "Infinite/backend/Software/alltogether.h"
+
 
 using namespace Infinite;
+const float torque = 100.0f;         // Torque applied to the wheels (Nm)
+const float deltaTime = 1.0f / 60.0f; // Time step for each update (seconds)
+const float brakeTorqueScale = -100.0f;
+const float torqueScale = 1.0f;
+float speed = 0.0f;
+float steeringAngle = 0.0f; // Steering angle in degrees
 
-const char *const MODEL_PATH = R"(../assets/viking_room.obj)";
-const char *const MODEL_PATH2 = R"(../assets/untitled.obj)";
+template <typename T> int sgn(T val) { return (T(0) < val) - (val < T(0)); }
 
-const char *const TEXTURE_PATH = R"(../assets/viking_room.png)";
-const char *const TEXTURE_PATH2 = R"(../assets/image.jpg)";
+Car car(0.0f, glm::radians(0.0f), 0.4f, 0.1f, 2.0f, 0.1f);
 
-Camera camera;
+const char *const MODEL_PATH = R"(../assets/track.obj)";
+// const char *const MODEL_PATH2 = R"(../assets/untitled.obj)";
+
+const char *const TEXTURE_PATH = R"(../assets/track.png)";
+// const char *const TEXTURE_PATH2 = R"(../assets/image.jpg)";
 
 void mainLoop() {
 
@@ -35,6 +45,7 @@ void mainLoop() {
   float spf;
   int f = 0;
   double frameTimes = 0;
+  bool firstFrame = true;
 
 #define SENSITIVITY 0.4f
 
@@ -92,31 +103,68 @@ void mainLoop() {
                        &ypos); // TODO: cursor snaps player when tabbing in
       glfwSetCursorPos(window, swapChainExtent.width / 2.0,
                        swapChainExtent.height / 2.0);
-      // looking
-      camera.mouse((std::floor(xpos - swapChainExtent.width / 2.0f) * spf) *
-                       SENSITIVITY,
-                   (std::floor((ypos - swapChainExtent.height / 2.0f)) * spf) *
-                       SENSITIVITY);
+
+      // // looking
+      // if (!firstFrame) {
+      //   cameras.mouse(
+      //       (std::floor(xpos - swapChainExtent.width / 2.0f) * spf) *
+      //           SENSITIVITY,
+      //       (std::floor((ypos - swapChainExtent.height / 2.0f)) * spf) *
+      //           SENSITIVITY);
+      // } else {
+      //   firstFrame = false;
+      // }
+      // // movement
+      // if (glfwGetKey(window, GLFW_KEY_W)) {
+      //   cameras.move(spf, FORWARD);
+      // }
+      // if (glfwGetKey(window, GLFW_KEY_S)) {
+      //   cameras.move(spf, BACKWARD);
+      // }
+      // if (glfwGetKey(window, GLFW_KEY_A)) {
+      //   cameras.move(spf, LEFT);
+      // }
+      // if (glfwGetKey(window, GLFW_KEY_D)) {
+      //   cameras.move(spf, RIGHT);
+      // }
+      // if (glfwGetKey(window, GLFW_KEY_SPACE)) {
+      //   cameras.move(spf, UP);
+      // }
+      // if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)) {
+      //   cameras.move(spf, DOWN);
+      // }
 
       // movement
+      speed = 0.0f;
+      steeringAngle = 0.0f;
       if (glfwGetKey(window, GLFW_KEY_W)) {
-        camera.move(spf, FORWARD);
+        speed = 1.0f;
       }
       if (glfwGetKey(window, GLFW_KEY_S)) {
-        camera.move(spf, BACKWARD);
+        speed = -1.0f;
       }
       if (glfwGetKey(window, GLFW_KEY_A)) {
-        camera.move(spf, LEFT);
+        steeringAngle = -1.0f;
       }
       if (glfwGetKey(window, GLFW_KEY_D)) {
-        camera.move(spf, RIGHT);
+        steeringAngle = 1.0f;
       }
-      if (glfwGetKey(window, GLFW_KEY_SPACE)) {
-        camera.move(spf, UP);
+
+      float inverseVelocity = std::abs(car.velocity);
+      float brakeTorque =
+          std::abs(speed) < 0.01f
+              ? sgn(car.velocity) * inverseVelocity * brakeTorqueScale
+              : speed * torque;
+
+      cameras.move(car.update(steeringAngle * 20.0, brakeTorque, spf / 100.0f),
+                   Infinite::FORWARD);
+      cameras.setAngles(car.heading + M_PI / 2.0, -M_PI / 2.0);
+      
+      if(glfwGetKey(window, GLFW_KEY_F)) {
+        car.velocity = 0;
       }
-      if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)) {
-        camera.move(spf, DOWN);
-      }
+
+      // std::cout << car.velocity << std::endl;
     }
     renderFrame();
   }
@@ -124,11 +172,7 @@ void mainLoop() {
 }
 
 int main() {
-  App vulkanTest("Vulkan Test", 0, 1, 0);
-
-  // ComputeRenderPass computePass{};
-
-  // addRenderPass(&computePass);
+  App vulkanTest("Racecar Sim 2", 0, 1, 0);
 
   BasicRenderPass mainPass{};
 
@@ -137,13 +181,15 @@ int main() {
   initInfinite(vulkanTest);
 
   Model mainModel = createModel("main", MODEL_PATH, TEXTURE_PATH);
+  mainModel.setScale(glm::vec3(10.0f, 10.0f, 10.0f));
 
   mainPass.addModel(&mainModel);
-  // mainPass.addModel(computePass.getModels().front());
 
-  camera = Camera(glm::vec3(0, 0, -0.5));
-  camera.setAngles(-27.2313, -1.3192);
-  cameras.push_back(&camera);
+  cameras.setAngles(M_PI / 2.0, -M_PI / 2.0);
+
+  init(mainModel);
+
+  castRays(cameras.getPosition());
 
   try {
     mainLoop();

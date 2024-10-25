@@ -1,12 +1,13 @@
 #include "BaseModel.h"
 #include "../../../util/VulkanUtils.h"
 #include "../../../util/constants.h"
-#include "../tiny_obj_loader.h"
 #include <cstddef>
 #include <cstring>
 #include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_transform.hpp>
 #include <glm/fwd.hpp>
 #include <glm/gtx/hash.hpp>
+#include <glm/gtx/transform.hpp>
 #include <iostream>
 #include <ostream>
 #include <unordered_map>
@@ -35,7 +36,8 @@ BaseModel::createUniformBuffer(VkDeviceSize bufferSize) {
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                  VMA_ALLOCATION_CREATE_MAPPED_BIT |
-                     VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT, "UniformBuffer");
+                     VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+                 "UniformBuffer");
   }
   return uniformBuffers;
 }
@@ -101,12 +103,18 @@ void BaseModel::updateUniformBuffer(uint32_t index, Camera camera,
 
   UniformBufferObject ubo{};
   ubo.model = glm::mat4(1.0f);
+  ubo.model = glm::scale(ubo.model, scale);
+  ubo.model = glm::rotate(ubo.model, xAngle, glm::vec3(0, 0, 1));
+  ubo.model = glm::rotate(ubo.model, yAngle, glm::vec3(1, 0, 0));
+  ubo.model = glm::rotate(ubo.model, zAngle, glm::vec3(0, 1, 0));
+  ubo.model = glm::translate(ubo.model, position);
+
 
   if (camera.getIsOrthographic()) {
     ubo.proj = glm::ortho(0.0f, (float)width, 0.0f, (float)height, 0.1f, 10.0f);
   } else {
     ubo.proj = glm::perspective(glm::radians(110.0f), width / (float)height,
-                                0.01f, 10.0f);
+                                0.01f, 100.0f);
   }
   ubo.view = camera.getViewMatrix();
   ubo.proj[1][1] *= -1;

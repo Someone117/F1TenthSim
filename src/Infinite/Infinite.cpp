@@ -364,7 +364,7 @@ void renderFrame() {
     if (r->getPipelineType() == VK_PIPELINE_BIND_POINT_COMPUTE)
       continue;
     for (BaseModel *model : r->getModels()) {
-      model->updateUniformBuffer(currentFrame, *cameras[0], // hard code now
+      model->updateUniformBuffer(currentFrame, cameras, // hard code now
                                  allocator, swapChainExtent.width,
                                  swapChainExtent.height);
     }
@@ -437,9 +437,7 @@ void cleanUp() {
   for (uint32_t i = 0; i < renderPasses.size(); i++) {
     renderPasses[i]->destroy(device, allocator);
   }
-  for (const auto &c : cameras) {
-    c->~Camera();
-  }
+  cameras.~Camera();
   cleanupSwapChain();
 
   //        camera.~Camera(); // done
@@ -801,8 +799,8 @@ void saveScreenshot(const char *filename, ScreenShotFormat screenshotFormat) {
                      tightlyPackedData.data(),
                      swapChainExtent.width * bytesPerPixel);
     } else {
-      stbi_write_jpg(filename, swapChainExtent.width, swapChainExtent.height,
-                     4, tightlyPackedData.data(), 100);
+      stbi_write_jpg(filename, swapChainExtent.width, swapChainExtent.height, 4,
+                     tightlyPackedData.data(), 100);
     }
   } else {
     data += subResourceLayout.offset;
