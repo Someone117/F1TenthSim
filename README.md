@@ -1,4 +1,4 @@
-# VulkanProject
-A simple vulkan render engine build in C++
+# F1TenthSim
 
-Based on https://vulkan-tutorial.com/, but uses Vulkan Memory Allocator, and supports multiple render passes.
+A simulator written from my own render engine.
+Has LIDAR and not super accurate physics but it is meant to prototype path finding algorithms while exposing everything to the user.

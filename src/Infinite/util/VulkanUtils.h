@@ -27,11 +27,11 @@ struct ImageAlloc {
 #endif
 
 namespace Infinite {
-#ifdef NDEBUG
+// #ifdef NDEBUG
 const static bool enableValidationLayers = false;
-#else
-const static bool enableValidationLayers = true;
-#endif
+// #else
+// const static bool enableValidationLayers = true;
+// #endif
 
 struct Particle {
   glm::vec2 position;

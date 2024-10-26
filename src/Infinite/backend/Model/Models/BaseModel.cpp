@@ -12,6 +12,8 @@
 #include <ostream>
 #include <unordered_map>
 #include <vulkan/vulkan_core.h>
+#include "../tiny_obj_loader.h"
+
 
 namespace std {
 template <> struct hash<Infinite::Vertex> {

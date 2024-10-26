@@ -11,15 +11,12 @@
 #include <iostream>
 #include <ostream>
 
-
-#include "Infinite/backend/Software/alltogether.h"
-
+#include "Infinite/backend/Software/BVH.h"
 
 using namespace Infinite;
-const float torque = 100.0f;         // Torque applied to the wheels (Nm)
+const float torque = 0.010f;          // Torque applied to the wheels (Nm)
 const float deltaTime = 1.0f / 60.0f; // Time step for each update (seconds)
-const float brakeTorqueScale = -100.0f;
-const float torqueScale = 1.0f;
+const float brakeTorqueScale = -0.2f;
 float speed = 0.0f;
 float steeringAngle = 0.0f; // Steering angle in degrees
 
@@ -43,9 +40,9 @@ void mainLoop() {
   double currentTime;
   double lastTime = 0.0;
   float spf;
-  int f = 0;
-  double frameTimes = 0;
   bool firstFrame = true;
+  double frameTimes = 0;
+  uint32_t f = 0;
 
 #define SENSITIVITY 0.4f
 
@@ -54,26 +51,24 @@ void mainLoop() {
     std::cout << "Raw input supported, using it" << std::endl;
   }
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
   uint32_t screenshotNum = 0;
   while (!glfwWindowShouldClose(window)) {
     currentTime = glfwGetTime();
     spf = currentTime - lastTime;
     lastTime = currentTime;
     frameTimes += spf;
+
     f++;
     if (f == 1000) {
       printf("%f\n", frameTimes);
       f = 0;
       frameTimes = 0;
     }
-
     glfwPollEvents();
 
     // tab out of game
     if (glfwGetKey(window, GLFW_KEY_TAB)) {
       if (!lastCursor) {
-        std::cout << "tab" << std::endl;
         capture_cursor = !capture_cursor;
         if (capture_cursor) {
           glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -152,19 +147,28 @@ void mainLoop() {
 
       float inverseVelocity = std::abs(car.velocity);
       float brakeTorque =
-          std::abs(speed) < 0.01f
+          std::abs(speed) < 0.1f
               ? sgn(car.velocity) * inverseVelocity * brakeTorqueScale
               : speed * torque;
 
-      cameras.move(car.update(steeringAngle * 20.0, brakeTorque, spf / 100.0f),
-                   Infinite::FORWARD);
+      float carPos = car.update(steeringAngle * 0.20f, brakeTorque, spf);
+      cameras.move(carPos, Infinite::FORWARD);
       cameras.setAngles(car.heading + M_PI / 2.0, -M_PI / 2.0);
-      
-      if(glfwGetKey(window, GLFW_KEY_F)) {
-        car.velocity = 0;
-      }
 
-      // std::cout << car.velocity << std::endl;
+      if (glfwGetKey(window, GLFW_KEY_F)) {
+        car.velocity = 0;
+        car.position = 0;
+        car.angularVelocity = 0;
+        car.acceleration = 0;
+      }
+      if (update()) {
+        Infinite::cameras.setPositon({0.0f, 0.9f, -0.05f});
+        car.velocity = 0;
+        car.position = 0;
+        car.angularVelocity = 0;
+        car.acceleration = 0;
+        std::cout << "AHHH" << std::endl;
+      }
     }
     renderFrame();
   }
@@ -181,19 +185,18 @@ int main() {
   initInfinite(vulkanTest);
 
   Model mainModel = createModel("main", MODEL_PATH, TEXTURE_PATH);
-  mainModel.setScale(glm::vec3(10.0f, 10.0f, 10.0f));
+  // mainModel.setScale(glm::vec3(10.0f, 10.0f, 10.0f));
 
   mainPass.addModel(&mainModel);
 
   cameras.setAngles(M_PI / 2.0, -M_PI / 2.0);
 
-  init(mainModel);
-
-  castRays(cameras.getPosition());
+  UpdateBoundingVolumeHierarchy("../assets/bvh", mainModel);
 
   try {
     mainLoop();
     cleanUp();
+    destroyBVH();
   } catch (const std::exception &e) {
     std::cerr << e.what() << std::endl;
     return EXIT_FAILURE;

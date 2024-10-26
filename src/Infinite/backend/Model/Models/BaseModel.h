@@ -5,9 +5,9 @@
 #define MAX_MODELS 128
 #endif
 
-// #ifndef TINYOBJLOADER_IMPLEMENTATION
-// #define TINYOBJLOADER_IMPLEMENTATION
-// #endif
+#ifndef TINYOBJLOADER_IMPLEMENTATION
+#define TINYOBJLOADER_IMPLEMENTATION
+#endif
 
 #ifndef TINYOBJLOADER_USE_MAPBOX_EARCUT
 #define TINYOBJLOADER_USE_MAPBOX_EARCUT
@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
 #pragma once
-#include "../tiny_obj_loader.h"
 
 #include "../../../frontend/Camera.h"
 #include "../../../util/VulkanUtils.h"

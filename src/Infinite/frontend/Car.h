@@ -32,7 +32,7 @@ public:
     // Convert steering angle to radians
     steeringAngleDegrees = std::clamp(steeringAngleDegrees, -20.0f, 20.0f);
     float steeringAngle = glm::radians(steeringAngleDegrees);
-
+    position = 0;
     // Calculate the force exerted by the torque on the wheels (force = torque /
     // wheel radius)
     float force = torque / wheelRadius;
@@ -44,9 +44,10 @@ public:
     velocity += acceleration * deltaTime;
 
     // 0.4 is a really good max
-    velocity = std::clamp(velocity, -0.15f, 0.15f);
-    if (std::abs(velocity) < 0.01) {
+    velocity = std::clamp(velocity, -0.6f, 0.6f);
+    if (std::abs(velocity) < 1e-4) {
       velocity = 0.0f;
+      acceleration = 0.0f;
     }
     // Calculate turning radius
     float turningRadius;

@@ -2,7 +2,7 @@
 #include <glm/fwd.hpp>
 
 namespace Infinite {
-Camera cameras = Camera(glm::vec3(10, 9, -0.5));
+Camera cameras = Camera();
 
 void Camera::move(float amt, MoveDirection direction) {
   glm::vec3 forward =

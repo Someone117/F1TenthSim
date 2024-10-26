@@ -58,7 +58,6 @@ GLFWwindow *window;
 bool framebufferResized;
 
 void initInfinite(App app) {
-  std::cout << "Starting initiation of Infinite Engine" << std::endl;
   glfwInit();
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -128,8 +127,6 @@ void initInfinite(App app) {
     throw std::runtime_error("failed to create window surface!");
   }
 
-  std::cout << "Finished window setup" << std::endl;
-
   pickPhysicalDevice();
 
   createLogicalDevice();
@@ -185,8 +182,6 @@ void initInfinite(App app) {
 
   createCommandPool(imagePool, device);
 
-  std::cout << "Starting to create render passes" << std::endl;
-
   for (const auto &r : renderPasses) {
     r->createRenderPass(device, physicalDevice, swapChainImageFormat,
                         msaaSamples);
@@ -197,8 +192,6 @@ void initInfinite(App app) {
 
   for (const auto &r : renderPasses) {
     if (r->getPipelineType() == VK_PIPELINE_BIND_POINT_COMPUTE) {
-      std::cout << "Found compute render pass at index: " << r->getIndex()
-                << std::endl;
       r->preInit(device, physicalDevice, swapChainImageFormat, swapChainExtent,
                  allocator, msaaSamples, swapChainImageViews);
     } else {
@@ -206,8 +199,6 @@ void initInfinite(App app) {
         swapChainFramebuffers.resize(swapChainImageViews.size());
         first = true;
       }
-      std::cout << "Found graphics render pass at index: " << r->getIndex()
-                << std::endl;
       r->preInit(device, physicalDevice, swapChainImageFormat, swapChainExtent,
                  allocator, msaaSamples, swapChainImageViews);
     }
