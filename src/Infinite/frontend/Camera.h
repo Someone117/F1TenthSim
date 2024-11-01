@@ -17,7 +17,7 @@ enum MoveDirection { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
 const glm::vec3 worldUp(0.0f, 0.0f, 1.0f);
 class Camera {
 public:
-  explicit Camera(glm::vec3 pos = glm::vec3(0.0f, 0.9f, -0.05f),
+  explicit Camera(glm::vec3 pos = glm::vec3(-1.0f, 0.9f, -0.05f),
                   glm::vec3 up = worldUp, float yaw = M_PI, float pitch = 0.0f,
                   bool _isOrthographic = false)
       : position(pos), Up(up), xAngle(yaw), yAngle(pitch),
